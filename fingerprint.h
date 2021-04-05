@@ -13,9 +13,46 @@
 
 
 /* R503 fingerprint sensor macros */
-#define FINGERPRINT_MSG_HEADER 0xEF01
+#define R503_MSG_HEADER 0xEF01
+#define R503_DEFAULT_ADDRESS 0xFFFFFFFF
 
-/* acknowledge packet codes */
+/* R503 fingerprint sensor instruction codes */
+#define R503_INSTR_GET_FINGER_IMG 0x01
+#define R503_INSTR_IMG_TO_CHAR_FILE 0x02
+#define R503_INSTR_MATCH_TEMPLATES 0x03
+#define R503_INSTR_SEARCH_FINGER_LIB 0x04
+#define R503_INSTR_GEN_TEMPLATE 0x05
+#define R503_INSTR_STORE_TEMPLATE 0x06
+#define R503_INSTR_READ_TEMPLATE 0x07
+#define R503_INSTR_UPLOAD_TEMPLATE 0x08
+#define R503_INSTR_DOWNLOAD_TEMPLATE 0x09
+#define R503_INSTR_UPLOAD_IMG 0x0A
+#define R503_INSTR_DOWNLOAD_IMG 0x0B
+#define R503_INSTR_DELETE_TEMPLATE 0x0C
+#define R503_INSTR_READ_TEMPLATE_IDX_TAB 0x1F
+#define R503_INSTR_CANCEL_INSTR 0x30
+#define R503_INSTR_CHECK_SENSOR 0x36
+#define R503_INSTR_GET_FW_VER 0x3A
+#define R503_INSTR_SOFT_RESET 0x3D
+#define R503_INSTR_EMPTY_LIB 0x0D
+#define R503_INSTR_SET_SYS_PARAM 0x0E
+#define R503_INSTR_READ_SYS_PARAM 0x0F
+#define R503_INSTR_SET_PASSWD 0x12
+#define R503_INSTR_VERIFY_PASSWD 0x13
+#define R503_INSTR_GET_RAND_CODE 0x14
+#define R503_INSTR_SET_DEV_ADDR 0x15
+#define R503_INSTR_READ_INFO_PAGE 0x16
+#define R503_INSTR_PORT_CTRL 0x17
+#define R503_INSTR_WRITE_NOTEPAD 0x18
+#define R503_INSTR_READ_NOTEOPAD 0x19
+#define R503_INSTR_READ_TEMPLATE_NUMS 0x1D
+#define R503_INSTR_GET_IMG_EX 0x28
+#define R503_INSTR_HANDSHAKE 0x40
+#define R503_INSTR_GET_ALG_LIB_VER 0x39
+#define R503_INSTR_READ_PROD_INFO 0x3C
+#define R503_INSTR_LED_CONFIG 0x35
+
+/* R530 fingerprint sensor acknowledge packet codes */
 #define R503_ACK_OK 0x00
 #define R503_ACK_ERR_REC_DATA_PCKG 0x01
 #define R503_ACK_ERR_NO_FINGER 0x02
@@ -40,6 +77,18 @@
 #define R503_ACK_ERR_BAD_REG_CONFIG 0x1B
 #define R503_ACK_ERR_NOTEPAD_PAGE_NUM 0x1C
 #define R503_ACK_ERR_COMM 0x1D
+
+/* R503 fingerprint sensor LED macros */
+#define R503_LED_BREATHING 0x01
+#define R503_LED_FLASHING 0x02
+#define R503_LED_ON 0x03
+#define R503_LED_OFF 0x04
+#define R503_LED_SLOW_ON 0x05
+#define R503_LED_SLOW_OFF 0x06
+
+#define R503_LED_RED 0x01
+#define R503_LED_BLUE 0x02
+#define R503_LED_PURPLE 0x03
 
 /* signal hadling macros */
 #define SIGNAL_TERMINATE (unsigned)2
@@ -86,6 +135,8 @@ enum TError
 	EGpioBadISR = -16,
 	EBadThread = -17,
 	ETtyBadOpen = -18,
+	ETtyBadWrite = -19,
+	ETtyBadHandle = -20,
 	EOk = 0
 	};
 
@@ -93,20 +144,28 @@ typedef struct
 	{
 	uint16_t header;
 	uint32_t address;
-	uint8_t pckg_id;
-	uint16_t pckg_len;
-	uint16_t chcksum;
+	uint8_t package_id;
+	uint16_t package_length;
+	uint16_t checksum;
+	size_t send_packet_length;
+	int serial_handle;
 
 	uint8_t *data;
-
-	size_t full_pckt_len;
-	uint8_t *full_pckt;
+	uint8_t *send_packet;
 	} fp_packet_r503;
 
 
 void HandleSignal(int aSignum, void * aData);
 int GpioConfig(int *aIsrData, int *aSigData);
 
-int CtorFpPacket(fp_packet_r503 * const aStruct, const uint8_t aID, const uint16_t aLen, uint8_t * aData);
+int BufferAlloc(uint8_t ** const aBuffer, const size_t aLen);
+void BufferDealloc(uint8_t ** aBuffer);
+int CtorFpPacket(fp_packet_r503 * const aStruct, const uint8_t aID, const uint16_t aLen, const uint8_t * const aData, const int * const aHandle);
+void DtorFpPacket(fp_packet_r503 * aStruct);
+int SendFpPacket(const fp_packet_r503 * const aPacket);
+int ReadFpPacket(fp_packet_r503 * const aPacket);
+void PrintFpPacket(const fp_packet_r503 * const aPacket, const char * const aPcktType);
+int SetFpLed(const int * const aSerHandle, const uint8_t aState, const uint8_t aColor, const uint8_t aPeriod, const uint8_t aCount);
+int GetFpResponse();
 
 #endif /* __FINGERPRINT_H__ */
