@@ -16,6 +16,12 @@
 #define R503_MSG_HEADER 0xEF01
 #define R503_DEFAULT_ADDRESS 0xFFFFFFFF
 
+/* R503 fingerprint sensor packet types */
+#define R503_PACKET_CMD 0x01
+#define R503_PACKET_DATA 0x02
+#define R503_PACKET_ACK 0x07
+#define R503_PACKET_EOD 0x08
+
 /* R503 fingerprint sensor instruction codes */
 #define R503_INSTR_GET_FINGER_IMG 0x01
 #define R503_INSTR_IMG_TO_CHAR_FILE 0x02
@@ -96,6 +102,7 @@
 /* serial port handling macros */
 #define UART_PORT_NAME "/dev/ttyAMA0"
 #define UART_BAUD_RATE (unsigned)57600
+#define DATA_WAIT_TIMEOUT_MICROS 1000000
 
 /* GPIO pin function macros */
 #define GPIO_FINGER_WAKEUP (unsigned)22
@@ -117,26 +124,16 @@ extern char ** __argv;
 
 enum TError
 	{
-	EWrongArgs = -1,
-	EBadAlloc = -2,
-	EBadScan = -3,
-	EBadOpen = -4,
-	EBadRead = -5,
-	ENullPtr = -6,
-	EBadWrite = -7,
-	EBadSocket = -8,
-	EBadServer = -9,
-	EBadConnect = -10,
-	EBadNtp = -11,
-	EGpioBadInit = -12,
-	EGpioBadMode = -13,
-	EGpioBadPud = -14,
-	EGpioBadWrite = -15,
-	EGpioBadISR = -16,
-	EBadThread = -17,
-	ETtyBadOpen = -18,
-	ETtyBadWrite = -19,
-	ETtyBadHandle = -20,
+	EBadAlloc = -1,
+	ENullPtr = -2,
+	EGpioBadInit = -10,
+	EGpioBadMode = -11,
+	EGpioBadPud = -12,
+	EGpioBadISR = -13,
+	ETtyBadOpen = -20,
+	ETtyBadWrite = -21,
+	ETtyBadHandle = -22,
+	ETtyTimeout = -23,
 	EOk = 0
 	};
 
@@ -155,17 +152,21 @@ typedef struct
 	} fp_packet_r503;
 
 
+void HandleFinger(int aGpio, int aLevel, uint32_t aTick, void * aData);
 void HandleSignal(int aSignum, void * aData);
 int GpioConfig(int *aIsrData, int *aSigData);
 
 int BufferAlloc(uint8_t ** const aBuffer, const size_t aLen);
 void BufferDealloc(uint8_t ** aBuffer);
-int CtorFpPacket(fp_packet_r503 * const aStruct, const uint8_t aID, const uint16_t aLen, const uint8_t * const aData, const int * const aHandle);
+int CtorFpPacket(fp_packet_r503 * const aStruct, const uint8_t aId, const uint16_t aLen, const uint8_t * const aData, const int * const aHandle);
 void DtorFpPacket(fp_packet_r503 * aStruct);
 int SendFpPacket(const fp_packet_r503 * const aPacket);
 int ReadFpPacket(fp_packet_r503 * const aPacket);
+int WaitForData(const int aSerHandle);
+int64_t ReadByBytes(const int aSerHandle, unsigned aNumofBytes);
 void PrintFpPacket(const fp_packet_r503 * const aPacket, const char * const aPcktType);
 int SetFpLed(const int * const aSerHandle, const uint8_t aState, const uint8_t aColor, const uint8_t aPeriod, const uint8_t aCount);
 int GetFpResponse();
+int GetFingerImg();
 
 #endif /* __FINGERPRINT_H__ */

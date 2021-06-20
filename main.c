@@ -9,7 +9,7 @@ int main(int argc, char ** argv)
 	__argc = argc;
 	__argv = argv;
 
-	int terminate = FALSE, isr_uselater = 0, serhandle = 0;
+	int Err = 0, terminate = FALSE, isr_uselater = 0, serhandle = 0;
 
 	if(GpioConfig(&isr_uselater, &terminate))
 		return EGpioBadInit;
@@ -20,20 +20,22 @@ int main(int argc, char ** argv)
 		return ETtyBadOpen;
 		}
 
-	uint8_t pid = 0x1;
+	uint8_t pid = R503_PACKET_CMD;
 	uint16_t len = 0x3;
 	uint8_t pdata[1] = { 0xF };
 	fp_packet_r503 packet = { 0, };
-	if (CtorFpPacket(&packet, pid, len, pdata, &serhandle))
+	if ((Err = CtorFpPacket(&packet, pid, len, pdata, &serhandle)))
 		fprintf(stderr, "\n%s: ERROR! Could not create R503 sensor packet.\n", __argv[0]);
 
-	if (SendFpPacket(&packet))
-		fprintf(stderr, "\n%s: ERROR! Could not sent full packet.\n", __argv[0]);
+	if ((Err = SendFpPacket(&packet)))
+		fprintf(stderr, "\n%s: ERROR! Could not send full packet.\n", __argv[0]);
 
 	fp_packet_r503 rec_packet = { 0, };
-	ReadFpPacket(&rec_packet);
+	if ((Err = ReadFpPacket(&rec_packet)))
+		fprintf(stderr, "\n%s: ERROR! Could not read full ack packet.\n", __argv[0]);
 
-	PrintFpPacket(&rec_packet, "Received");
+	if (!Err)
+		PrintFpPacket(&rec_packet, "Received");
 
 	SetFpLed(&serhandle, R503_LED_FLASHING, R503_LED_PURPLE, 0x20, 0x10);
 

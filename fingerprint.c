@@ -83,7 +83,10 @@ int CtorFpPacket(fp_packet_r503 * const aStruct, const uint8_t aId, const uint16
 	aStruct->package_length = aLen;
 
 	if (BufferAlloc(&aStruct->data, aLen - sizeof(aStruct->checksum)))
+		{
+		DtorFpPacket(aStruct);
 		return EBadAlloc;
+		}
 	memcpy(aStruct->data, aData, aLen - sizeof(aStruct->checksum));
 
 	//sum -> over each single byte
@@ -94,7 +97,10 @@ int CtorFpPacket(fp_packet_r503 * const aStruct, const uint8_t aId, const uint16
 
 	aStruct->send_packet_length = sizeof(aStruct->header) + sizeof(aStruct->address) + sizeof(aStruct->package_id) + sizeof(aStruct->package_length) + aStruct->package_length;
 	if (BufferAlloc(&aStruct->send_packet, aStruct->send_packet_length))
+		{
+		DtorFpPacket(aStruct);
 		return EBadAlloc;
+		}
 	aStruct->send_packet[0] = aStruct->header >> 8;
 	aStruct->send_packet[1] = aStruct->header & 0xFF;
 	aStruct->send_packet[2] = aStruct->address >> 24;
@@ -158,67 +164,139 @@ int SetFpLed(const int * const aSerHandle, const uint8_t aState, const uint8_t a
 	{
 	fp_packet_r503 led_pckt = { 0, };
 	uint8_t data[5] = { R503_INSTR_LED_CONFIG, aState, aPeriod, aColor, aCount };
-	if (CtorFpPacket(&led_pckt, 0x1, 0x7, data, aSerHandle))
+	int Err = 0;
+	if ((Err = CtorFpPacket(&led_pckt, R503_PACKET_CMD, 0x7, data, aSerHandle)))
 		{
 		fprintf(stderr, "\n%s: ERROR! Could not create packet.\n", __argv[0]);
-		return EBadAlloc; //maybe change
+		return Err;
 		}
 
-	if (SendFpPacket(&led_pckt))
-		return EBadAlloc; //change return value
+	if ((Err = SendFpPacket(&led_pckt)))
+		{
+		DtorFpPacket(&led_pckt);
+		return Err;
+		}
 
-	if (GetFpResponse())
-		return EBadAlloc; //change return value
+	if ((Err = GetFpResponse()))
+		{
+		DtorFpPacket(&led_pckt);
+		return Err;
+		}
 
 	return EOk;
 	}
 
-int ReadFpPacket(fp_packet_r503 * const aPacket)//TODO: timeout for waiting and separate function
+int WaitForData(const int aSerHandle)
 	{
-	if (serDataAvailable(aPacket->serial_handle) == PI_BAD_HANDLE)
-		return ETtyBadHandle;
-
-	while (serDataAvailable(aPacket->serial_handle) == 0) {}
-	aPacket->header = serReadByte(aPacket->serial_handle);
-	aPacket->header <<= 8;
-	while (serDataAvailable(aPacket->serial_handle) == 0) {}
-	aPacket->header |= serReadByte(aPacket->serial_handle);
-
-	while (serDataAvailable(aPacket->serial_handle) == 0) {}
-	aPacket->address = serReadByte(aPacket->serial_handle);
-	aPacket->address <<= 8;
-	while (serDataAvailable(aPacket->serial_handle) == 0) {}
-	aPacket->address |= serReadByte(aPacket->serial_handle);
-	aPacket->address <<= 8;
-	while (serDataAvailable(aPacket->serial_handle) == 0) {}
-	aPacket->address |= serReadByte(aPacket->serial_handle);
-	aPacket->address <<= 8;
-	while (serDataAvailable(aPacket->serial_handle) == 0) {}
-	aPacket->address |= serReadByte(aPacket->serial_handle);
-
-	while (serDataAvailable(aPacket->serial_handle) == 0) {}
-	aPacket->package_id = serReadByte(aPacket->serial_handle);
-
-	while (serDataAvailable(aPacket->serial_handle) == 0) {}
-	aPacket->package_length = serReadByte(aPacket->serial_handle);
-	aPacket->package_length <<= 8;
-	while (serDataAvailable(aPacket->serial_handle) == 0) {}
-	aPacket->package_length |= serReadByte(aPacket->serial_handle);
-
-	if (BufferAlloc(&aPacket->data, aPacket->package_length - sizeof(aPacket->checksum)))
-		return EBadAlloc;
-	for (size_t data_byte = 0; data_byte < aPacket->package_length - 2; ++data_byte)
+	uint32_t start_t = gpioTick(), curr_t = 0;
+	while (serDataAvailable(aSerHandle) == 0)
 		{
-		while (serDataAvailable(aPacket->serial_handle) == 0) {}
-		aPacket->data[data_byte] = serReadByte(aPacket->serial_handle);
+		curr_t = gpioTick();
+		if ((curr_t - start_t) > DATA_WAIT_TIMEOUT_MICROS)
+			{
+			fprintf(stderr, "\n%s: ERROR! Waiting for serial data reached timeout.\n", __argv[0]);
+			return ETtyTimeout;
+			}
 		}
 
-	while (serDataAvailable(aPacket->serial_handle) == 0) {}
-	aPacket->checksum = serReadByte(aPacket->serial_handle);
-	aPacket->checksum <<= 8;
-	while (serDataAvailable(aPacket->serial_handle) == 0) {}
-	aPacket->checksum |= serReadByte(aPacket->serial_handle);
+	return EOk;
+	}
 
+int64_t ReadByBytes(const int aSerHandle, unsigned aNumofBytes)
+	{
+	if (aNumofBytes > 4)
+		{
+		fprintf(stderr, "\n%s: WARNING! Largest packet element is 4 bytes. Larger values defaulted to 4.\n", __argv[0]);
+		aNumofBytes = 4;
+		}
+	if (aNumofBytes < 1)
+		{
+		fprintf(stderr, "\n%s: WARNING! Smallest packet element is 1 byte. Smaller values defaulted to 1.\n", __argv[0]);
+		aNumofBytes = 1;
+		}
+
+	int Err = 0;
+	uint32_t read_value = 0;
+	if ((Err = WaitForData(aSerHandle)))
+		return Err;
+
+	read_value = serReadByte(aSerHandle);
+	for (size_t n_byte = 2; n_byte <= aNumofBytes; ++n_byte)
+		{
+		read_value <<= 8;
+		if ((Err = WaitForData(aSerHandle))) return Err;
+		read_value |= serReadByte(aSerHandle);
+		}
+
+	return (int64_t)read_value;
+	}
+
+int ReadFpPacket(fp_packet_r503 * const aPacket)
+	{
+	if (!aPacket)
+		return ENullPtr;
+
+	if (serDataAvailable(aPacket->serial_handle) == PI_BAD_HANDLE)
+		{
+		DtorFpPacket(aPacket);
+		return ETtyBadHandle;
+		}
+
+	int64_t out = ReadByBytes(aPacket->serial_handle, 2);
+	if (out < 0)
+		{
+		DtorFpPacket(aPacket);
+		return out;
+		}
+	aPacket->header = (uint16_t)out;
+
+	out = ReadByBytes(aPacket->serial_handle, 4);
+	if (out < 0)
+		{
+		DtorFpPacket(aPacket);
+		return out;
+		}
+	aPacket->address = (uint32_t)out;
+
+	out = ReadByBytes(aPacket->serial_handle, 1);
+	if (out < 0)
+		{
+		DtorFpPacket(aPacket);
+		return out;
+		}
+	aPacket->package_id = (uint8_t)out;
+
+	out = ReadByBytes(aPacket->serial_handle, 2);
+	if (out < 0)
+		{
+		DtorFpPacket(aPacket);
+		return out;
+		}
+	aPacket->package_length = (uint16_t)out;
+
+	if (BufferAlloc(&aPacket->data, aPacket->package_length - sizeof(aPacket->checksum)))
+		{
+		DtorFpPacket(aPacket);
+		return EBadAlloc;
+		}
+	for (size_t data_byte = 0; data_byte < aPacket->package_length - 2; ++data_byte)
+		{
+		out = ReadByBytes(aPacket->serial_handle, 1);
+		if (out < 0)
+			{
+			DtorFpPacket(aPacket);
+			return out;
+			}
+		aPacket->data[data_byte] = (uint8_t)out;
+		}
+
+	out = ReadByBytes(aPacket->serial_handle, 2);
+	if (out < 0)
+		{
+		DtorFpPacket(aPacket);
+		return out;
+		}
+	aPacket->checksum = (uint16_t)out;
 
 	/*serRead(aPacket->serial_handle, (char*)&aPacket->header, 2);
 	aPacket->header = ((aPacket->header & (uint16_t)0xFF) << 8) | ((aPacket->header & 0xFF00) >> 8);*/
@@ -245,8 +323,10 @@ void PrintFpPacket(const fp_packet_r503 * const aPacket, const char * const aPck
 
 int GetFpResponse()
 	{
+	int Err = 0;
 	fp_packet_r503 ack_pckt = { 0, };
-	ReadFpPacket(&ack_pckt);
+	if ((Err = ReadFpPacket(&ack_pckt)))
+		return Err;
 	int out = ack_pckt.data[0];
 	DtorFpPacket(&ack_pckt);
 
