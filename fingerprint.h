@@ -1,13 +1,14 @@
+/*
+* http://download.mikroe.com/documents/datasheets/R503_datasheet.pdf
+*/
+
 #ifndef __FINGERPRINT_H__
 #define __FINGERPRINT_H__
 
 
 #include <stdio.h>
-//#include <sys/time.h>
-//#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-//#include <unistd.h>
 
 #include <pigpio.h>
 
@@ -101,8 +102,8 @@
 
 /* serial port handling macros */
 #define UART_PORT_NAME "/dev/ttyAMA0"
-#define UART_BAUD_RATE (unsigned)57600
-#define DATA_WAIT_TIMEOUT_MICROS 1000000
+#define UART_BAUD_RATE (unsigned)115200
+#define DATA_WAIT_TIMEOUT_MICROS (uint32_t)1000000
 
 /* GPIO pin function macros */
 #define GPIO_FINGER_WAKEUP (unsigned)22
@@ -167,6 +168,8 @@ int64_t ReadByBytes(const int aSerHandle, unsigned aNumofBytes);
 void PrintFpPacket(const fp_packet_r503 * const aPacket, const char * const aPcktType);
 int SetFpLed(const int * const aSerHandle, const uint8_t aState, const uint8_t aColor, const uint8_t aPeriod, const uint8_t aCount);
 int GetFpResponse();
-int GetFingerImg();
+int GetFingerImg(const int * const aSerHandle, const int * const aKillSig);
+int FingerImgToBuffer(const int * const aSerHandle, int aBuffNum);
+int GenFingerTemplate(const int * const aSerHandle, const int * const aKillSig);
 
 #endif /* __FINGERPRINT_H__ */

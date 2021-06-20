@@ -22,7 +22,7 @@ int main(int argc, char ** argv)
 
 	uint8_t pid = R503_PACKET_CMD;
 	uint16_t len = 0x3;
-	uint8_t pdata[1] = { 0xF };
+	uint8_t pdata[1] = { R503_INSTR_READ_SYS_PARAM };
 	fp_packet_r503 packet = { 0, };
 	if ((Err = CtorFpPacket(&packet, pid, len, pdata, &serhandle)))
 		fprintf(stderr, "\n%s: ERROR! Could not create R503 sensor packet.\n", __argv[0]);
@@ -38,6 +38,11 @@ int main(int argc, char ** argv)
 		PrintFpPacket(&rec_packet, "Received");
 
 	SetFpLed(&serhandle, R503_LED_FLASHING, R503_LED_PURPLE, 0x20, 0x10);
+
+	gpioSetISRFuncEx(GPIO_FINGER_WAKEUP, ISR_DETECTION_LEVEL, 0, NULL, NULL);
+	GenFingerTemplate(&serhandle, &terminate);
+	gpioDelay((uint32_t)1000000);
+	gpioSetISRFuncEx(GPIO_FINGER_WAKEUP, ISR_DETECTION_LEVEL, 0, HandleFinger, (void*)&isr_uselater);
 
 	while (!terminate)
 		{}
