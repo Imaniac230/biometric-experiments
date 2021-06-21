@@ -52,14 +52,14 @@ int main(int argc, char ** argv)
 	Err = MatchFingerTemplates(&serhandle);
 	if (!Err)
 		{
-		fprintf(stdout, "\n%s: SUCCESS! Finger matches.\n", argv[0]);
+		fprintf(stdout, "\n\n%s: SUCCESS! Finger matches.\n", argv[0]);
 		SetFpLed(&serhandle, R503_LED_FLASHING, R503_LED_BLUE, 0x20, 0x05);
 		gpioDelay((uint32_t)1500000);
 		SetFpLed(&serhandle, R503_LED_SLOW_ON, R503_LED_BLUE, 0x20, 0x00);
 		}
 	else if (Err == R503_ACK_ERR_NO_FP_MATCH)
 		{
-		fprintf(stdout, "\n%s: FAIL! Finger doesn't match.\n", argv[0]);
+		fprintf(stdout, "\n\n%s: FAIL! Finger doesn't match.\n", argv[0]);
 		SetFpLed(&serhandle, R503_LED_FLASHING, R503_LED_RED, 0x20, 0x05);
 		gpioDelay((uint32_t)1500000);
 		SetFpLed(&serhandle, R503_LED_SLOW_ON, R503_LED_RED, 0x20, 0x00);

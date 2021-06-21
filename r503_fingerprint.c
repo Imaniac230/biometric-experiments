@@ -72,9 +72,9 @@ void BufferDealloc(uint8_t ** aBuffer)
 		}
 	}
 
-int CtorFpPacket(fp_packet_r503 * const aStruct, const uint8_t aId, const uint16_t aLen, const uint8_t * const aData, const int * const aHandle)
+int CtorFpPacket(fp_packet_r503 * const aStruct, const uint8_t aId, const uint16_t aLen, const uint8_t * const aData, const int * const aSerHandle)
 	{
-	if (!aStruct)
+	if (!aStruct || !aData)
 		return ENullPtr;
 
 	aStruct->header = R503_MSG_HEADER;
@@ -113,8 +113,8 @@ int CtorFpPacket(fp_packet_r503 * const aStruct, const uint8_t aId, const uint16
 	aStruct->send_packet[aStruct->send_packet_length - 2] = aStruct->checksum >> 8;
 	aStruct->send_packet[aStruct->send_packet_length - 1] = aStruct->checksum & 0xFF;
 
-	if (aHandle)
-		aStruct->serial_handle = *aHandle;
+	if (aSerHandle)
+		aStruct->serial_handle = *aSerHandle;
 	else
 		aStruct->serial_handle = 0;
 
@@ -179,6 +179,26 @@ int GetFingerImg(const int * const aSerHandle, const int * const aKillSig)
 	return EOk;
 	}
 
+int SendFpWithResponse(fp_packet_r503 * const aStruct, const uint8_t aId, const uint16_t aLen, const uint8_t * const aData, const int * const aSerHandle, const char * const aErrStr)
+	{
+	if (!aStruct || !aData || !aSerHandle)
+		return ENullPtr;
+
+	int Err = 0;
+	if ((Err = CtorFpPacket(aStruct, aId, aLen, aData, aSerHandle)))
+		{
+		if (aErrStr)
+			fprintf(stderr, "\n%s: ERROR! Could not create packet %s\n", __argv[0], aErrStr);
+		else
+			fprintf(stderr, "\n%s: ERROR! Could not create packet.\n", __argv[0]);
+		return Err;
+		}
+	if ((Err = SendFpPacket(aStruct)))
+		return Err;
+
+	return GetFpResponse();
+	}
+
 int FingerImgToBuffer(const int * const aSerHandle, int aBuffNum)
 	{
 	if (!aSerHandle)
@@ -193,21 +213,8 @@ int FingerImgToBuffer(const int * const aSerHandle, int aBuffNum)
 
 	fp_packet_r503 finger_pckt = { 0, };
 	uint8_t data[2] = { R503_INSTR_IMG_TO_CHAR_FILE, buff_num };
-	int Err = 0;
-	//TODO: create one function which uses ctor, send and response commands
-	if ((Err = CtorFpPacket(&finger_pckt, R503_PACKET_CMD, 0x4, data, aSerHandle)))
-		{
-		fprintf(stderr, "\n%s: ERROR! Could not create packet for finger IMG to Buffer conversion.\n", __argv[0]);
-		return Err;
-		}
-
-	if ((Err = SendFpPacket(&finger_pckt)))
-		{
-		DtorFpPacket(&finger_pckt);
-		return Err;
-		}
-
-	if ((Err = GetFpResponse()))
+	int Err = SendFpWithResponse(&finger_pckt, R503_PACKET_CMD, 0x4, data, aSerHandle, "for finger IMG to Buffer conversion.");
+	if (Err)
 		{
 		fprintf(stderr, "\n%s: ERROR! Failed to generate character file from finger IMG.\n", __argv[0]);
 		DtorFpPacket(&finger_pckt);
@@ -239,20 +246,7 @@ int SaveFingerTemplate(const int * const aSerHandle, const int aSrcBuffNum, cons
 	fprintf(stdout, "\n\n%s: \tSaving finger template to flash memory ...\n", __argv[0]);
 	fp_packet_r503 template_pckt = { 0, };
 	uint8_t data[4] = { R503_INSTR_STORE_TEMPLATE, buff_num,  aDstFlashPos[0], aDstFlashPos[1] };
-	int Err = 0;
-	if ((Err = CtorFpPacket(&template_pckt, R503_PACKET_CMD, 0x6, data, aSerHandle)))
-		{
-		fprintf(stderr, "\n%s: ERROR! Could not create packet for finger template storage.\n", __argv[0]);
-		return Err;
-		}
-
-	if ((Err = SendFpPacket(&template_pckt)))
-		{
-		DtorFpPacket(&template_pckt);
-		return Err;
-		}
-
-	Err = GetFpResponse();
+	int Err = SendFpWithResponse(&template_pckt, R503_PACKET_CMD, 0x6, data, aSerHandle, "for finger template storage.");
 	if (Err == R503_ACK_ERR_FLASH_ID_OVERFLOW)
 		fprintf(stderr, "\n%s: ERROR! Storage position out of bounds of flash memory.", __argv[0]);
 	if (Err)
@@ -288,20 +282,7 @@ int LoadFingerTemplate(const int * const aSerHandle, const uint8_t * const aSrcF
 	fprintf(stdout, "\n\n%s: \tLoading finger template from flash memory ...\n", __argv[0]);
 	fp_packet_r503 template_pckt = { 0, };
 	uint8_t data[4] = { R503_INSTR_READ_TEMPLATE, buff_num,  aSrcFlashPos[0], aSrcFlashPos[1] };
-	int Err = 0;
-	if ((Err = CtorFpPacket(&template_pckt, R503_PACKET_CMD, 0x6, data, aSerHandle)))
-		{
-		fprintf(stderr, "\n%s: ERROR! Could not create packet for finger template loading.\n", __argv[0]);
-		return Err;
-		}
-
-	if ((Err = SendFpPacket(&template_pckt)))
-		{
-		DtorFpPacket(&template_pckt);
-		return Err;
-		}
-
-	Err = GetFpResponse();
+	int Err = SendFpWithResponse(&template_pckt, R503_PACKET_CMD, 0x6, data, aSerHandle, "for finger template loading.");
 	if (Err == R503_ACK_ERR_FLASH_ID_OVERFLOW)
 		fprintf(stderr, "\n%s: ERROR! Reading position out of bounds of flash memory.", __argv[0]);
 	if (Err)
@@ -358,19 +339,7 @@ int GenFingerTemplate(const int * const aSerHandle, const int * const aKillSig, 
 		{
 		fp_packet_r503 template_pckt = { 0, };
 		uint8_t data[1] = { R503_INSTR_GEN_TEMPLATE };
-		if ((Err = CtorFpPacket(&template_pckt, R503_PACKET_CMD, 0x3, data, aSerHandle)))
-			{
-			fprintf(stderr, "\n%s: ERROR! Could not create packet for finger template creation.\n", __argv[0]);
-			return Err;
-			}
-
-		if ((Err = SendFpPacket(&template_pckt)))
-			{
-			DtorFpPacket(&template_pckt);
-			return Err;
-			}
-
-		Err = GetFpResponse();
+		Err = SendFpWithResponse(&template_pckt, R503_PACKET_CMD, 0x3, data, aSerHandle, "for finger template creation.");
 		if (Err == R503_ACK_ERR_COMBINE_FILES)
 			fprintf(stderr, "\n%s: ERROR! Fingers do not match.", __argv[0]);
 		if (Err)
@@ -395,20 +364,7 @@ int MatchFingerTemplates(const int * const aSerHandle)
 	{
 	fp_packet_r503 match_pckt = { 0, };
 	uint8_t data[1] = { R503_INSTR_MATCH_TEMPLATES };
-	int Err = 0;
-	if ((Err = CtorFpPacket(&match_pckt, R503_PACKET_CMD, 0x3, data, aSerHandle)))
-		{
-		fprintf(stderr, "\n%s: ERROR! Could not create packet for template matching.\n", __argv[0]);
-		return Err;
-		}
-
-	if ((Err = SendFpPacket(&match_pckt)))
-		{
-		DtorFpPacket(&match_pckt);
-		return Err;
-		}
-
-	Err = GetFpResponse();
+	int Err = SendFpWithResponse(&match_pckt, R503_PACKET_CMD, 0x3, data, aSerHandle, "for template matching.");
 	if (Err == R503_ACK_ERR_NO_FP_MATCH)
 		{
 		fprintf(stdout, "\n%s: \tFinger templates do not match.\n", __argv[0]);
@@ -444,20 +400,8 @@ int SetFpLed(const int * const aSerHandle, const uint8_t aState, const uint8_t a
 	{
 	fp_packet_r503 led_pckt = { 0, };
 	uint8_t data[5] = { R503_INSTR_LED_CONFIG, aState, aPeriod, aColor, aCount };
-	int Err = 0;
-	if ((Err = CtorFpPacket(&led_pckt, R503_PACKET_CMD, 0x7, data, aSerHandle)))
-		{
-		fprintf(stderr, "\n%s: ERROR! Could not create packet for LED settings.\n", __argv[0]);
-		return Err;
-		}
-
-	if ((Err = SendFpPacket(&led_pckt)))
-		{
-		DtorFpPacket(&led_pckt);
-		return Err;
-		}
-
-	if ((Err = GetFpResponse()))
+	int Err = SendFpWithResponse(&led_pckt, R503_PACKET_CMD, 0x7, data, aSerHandle, "for LED settings.");
+	if (Err)
 		{
 		DtorFpPacket(&led_pckt);
 		return Err;
