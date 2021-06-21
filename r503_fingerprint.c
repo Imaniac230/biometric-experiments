@@ -151,7 +151,7 @@ int GetFingerImg(const int * const aSerHandle, const int * const aKillSig)
 		return Err;
 		}
 
-	fprintf(stdout, "\n%s: Place finger on sensor for detection ...\n", __argv[0]);
+	fprintf(stdout, "\n%s: \tPlace finger on sensor for detection ...\n", __argv[0]);
 	Err = R503_ACK_ERR_NO_FINGER;
 	while ((Err != R503_ACK_OK) && !terminate)
 		{
@@ -173,7 +173,7 @@ int GetFingerImg(const int * const aSerHandle, const int * const aKillSig)
 			terminate = TRUE;
 		}
 	if (!aKillSig || (aKillSig && !*aKillSig))
-		fprintf(stdout, "\n%s: Finger image stored successfully.\n\n", __argv[0]);
+		fprintf(stdout, "\n%s: \tFinger image stored successfully.\n\n", __argv[0]);
 
 	DtorFpPacket(&finger_pckt);
 	return EOk;
@@ -236,7 +236,7 @@ int SaveFingerTemplate(const int * const aSerHandle, const int aSrcBuffNum, cons
 		buff_num = 1;
 		}
 
-	fprintf(stdout, "\n%s: Saving finger template to flash memory ...\n", __argv[0]);
+	fprintf(stdout, "\n\n%s: \tSaving finger template to flash memory ...\n", __argv[0]);
 	fp_packet_r503 template_pckt = { 0, };
 	uint8_t data[4] = { R503_INSTR_STORE_TEMPLATE, buff_num,  aDstFlashPos[0], aDstFlashPos[1] };
 	int Err = 0;
@@ -263,7 +263,7 @@ int SaveFingerTemplate(const int * const aSerHandle, const int aSrcBuffNum, cons
 		}
 	DtorFpPacket(&template_pckt);
 
-	fprintf(stdout, "\n%s: Template saved successfuly.\n", __argv[0]);
+	fprintf(stdout, "\n%s: \tTemplate saved successfuly.\n", __argv[0]);
 	return EOk;
 	}
 
@@ -285,7 +285,7 @@ int LoadFingerTemplate(const int * const aSerHandle, const uint8_t * const aSrcF
 		buff_num = 1;
 		}
 
-	fprintf(stdout, "\n%s: Loading finger template from flash memory ...\n", __argv[0]);
+	fprintf(stdout, "\n\n%s: \tLoading finger template from flash memory ...\n", __argv[0]);
 	fp_packet_r503 template_pckt = { 0, };
 	uint8_t data[4] = { R503_INSTR_READ_TEMPLATE, buff_num,  aSrcFlashPos[0], aSrcFlashPos[1] };
 	int Err = 0;
@@ -312,7 +312,7 @@ int LoadFingerTemplate(const int * const aSerHandle, const uint8_t * const aSrcF
 		}
 	DtorFpPacket(&template_pckt);
 
-	fprintf(stdout, "\n%s: Template saved successfuly.\n", __argv[0]);
+	fprintf(stdout, "\n%s: \tTemplate saved successfuly.\n", __argv[0]);
 	return EOk;
 	}
 
@@ -322,7 +322,7 @@ int GenFingerTemplate(const int * const aSerHandle, const int * const aKillSig, 
 		return ENullPtr;
 
 	int kill = FALSE, Err = 0;
-	fprintf(stdout, "\n%s: Creating finger template ...\n", __argv[0]);
+	fprintf(stdout, "\n\n%s: \tCreating finger template ...\n", __argv[0]);
 	if (aKillSig)
 		{
 		if ((Err = GetFingerImg(aSerHandle, aKillSig)))
@@ -380,7 +380,7 @@ int GenFingerTemplate(const int * const aSerHandle, const int * const aKillSig, 
 			return Err;
 			}
 
-		fprintf(stdout, "\n%s: Finger template created.\n", __argv[0]);
+		fprintf(stdout, "\n%s: \tFinger template created.\n", __argv[0]);
 		DtorFpPacket(&template_pckt);
 
 		if (aDstFlashPos)
@@ -395,7 +395,7 @@ int MatchFingerTemplates(const int * const aSerHandle)
 	{
 	fp_packet_r503 match_pckt = { 0, };
 	uint8_t data[1] = { R503_INSTR_MATCH_TEMPLATES };
-	int Err = 0, match = TRUE;
+	int Err = 0;
 	if ((Err = CtorFpPacket(&match_pckt, R503_PACKET_CMD, 0x3, data, aSerHandle)))
 		{
 		fprintf(stderr, "\n%s: ERROR! Could not create packet for template matching.\n", __argv[0]);
@@ -411,8 +411,8 @@ int MatchFingerTemplates(const int * const aSerHandle)
 	Err = GetFpResponse();
 	if (Err == R503_ACK_ERR_NO_FP_MATCH)
 		{
-		fprintf(stdout, "\n%s: Finger templates do not match.\n", __argv[0]);
-		Err = 0; match = FALSE;
+		fprintf(stdout, "\n%s: \tFinger templates do not match.\n", __argv[0]);
+		return Err;
 		}
 	if (Err)
 		{
@@ -421,8 +421,8 @@ int MatchFingerTemplates(const int * const aSerHandle)
 		return Err;
 		}
 
-	if (match)
-		fprintf(stdout, "\n%s: Finger templates match.\n", __argv[0]);
+	fprintf(stdout, "\n%s: \tFinger templates match.\n", __argv[0]);
+	DtorFpPacket(&match_pckt);
 	return EOk;
 	}
 
