@@ -1,4 +1,4 @@
-#include "fingerprint.h"
+#include "r503_fingerprint.h"
 
 
 int __argc = 0;
@@ -40,7 +40,8 @@ int main(int argc, char ** argv)
 	SetFpLed(&serhandle, R503_LED_FLASHING, R503_LED_PURPLE, 0x20, 0x10);
 
 	gpioSetISRFuncEx(GPIO_FINGER_WAKEUP, ISR_DETECTION_LEVEL, 0, NULL, NULL);
-	GenFingerTemplate(&serhandle, &terminate);
+	uint8_t flash_mem[2] = { 0x00, 0x00 };
+	GenFingerTemplate(&serhandle, &terminate, flash_mem);
 	gpioDelay((uint32_t)1000000);
 	gpioSetISRFuncEx(GPIO_FINGER_WAKEUP, ISR_DETECTION_LEVEL, 0, HandleFinger, (void*)&isr_uselater);
 

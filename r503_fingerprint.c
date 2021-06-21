@@ -1,4 +1,4 @@
-#include "fingerprint.h"
+#include "r503_fingerprint.h"
 
 
 void HandleFinger(int aGpio, int aLevel, uint32_t aTick, void * aData)
@@ -184,7 +184,7 @@ int FingerImgToBuffer(const int * const aSerHandle, int aBuffNum)
 	if (!aSerHandle)
 		return ENullPtr;
 
-	int buff_num = aBuffNum;
+	uint8_t buff_num = (uint8_t)aBuffNum;
 	if ((aBuffNum != 1) && (aBuffNum != 2))
 		{
 		fprintf(stdout, "\n%s: WARNING! Valid buffer IDs are 1 or 2. Defaulting to 1.\n", __argv[0]);
@@ -218,7 +218,56 @@ int FingerImgToBuffer(const int * const aSerHandle, int aBuffNum)
 	return EOk;
 	}
 
-int GenFingerTemplate(const int * const aSerHandle, const int * const aKillSig)
+int SaveFingerTemplate(const int * const aSerHandle, const int aSrcBuffNum, const uint8_t * const aDstFlashPos)
+	{
+	if (!aSerHandle)
+		return ENullPtr;
+
+	if (!aDstFlashPos)
+		{
+		fprintf(stderr, "\n%s: ERROR! Memory storage location not specified.\n", __argv[0]);
+		return ENullPtr;
+		}
+
+	uint8_t buff_num = (uint8_t)aSrcBuffNum;
+	if ((aSrcBuffNum != 1) && (aSrcBuffNum != 2))
+		{
+		fprintf(stdout, "\n%s: WARNING! Valid buffer IDs are 1 or 2. Defaulting to 1.\n", __argv[0]);
+		buff_num = 1;
+		}
+
+	fprintf(stdout, "\n%s: Saving finger template to flash memory ...\n", __argv[0]);
+	fp_packet_r503 template_pckt = { 0, };
+	uint8_t data[4] = { R503_INSTR_STORE_TEMPLATE, buff_num,  aDstFlashPos[0], aDstFlashPos[1] };
+	int Err = 0;
+	if ((Err = CtorFpPacket(&template_pckt, R503_PACKET_CMD, 0x6, data, aSerHandle)))
+		{
+		fprintf(stderr, "\n%s: ERROR! Could not create packet for finger IMG to Buffer conversion.\n", __argv[0]);
+		return Err;
+		}
+
+	if ((Err = SendFpPacket(&template_pckt)))
+		{
+		DtorFpPacket(&template_pckt);
+		return Err;
+		}
+
+	Err = GetFpResponse();
+	if (Err == R503_ACK_ERR_FLASH_ID_OVERFLOW)
+		fprintf(stderr, "\n%s: ERROR! Storage position out of bounds of flash memory.", __argv[0]);
+	if (Err)
+		{
+		fprintf(stderr, "\n%s: ERROR! Failed to save finger template to flash.\n", __argv[0]);
+		DtorFpPacket(&template_pckt);
+		return Err;
+		}
+	DtorFpPacket(&template_pckt);
+
+	fprintf(stdout, "\n%s: Template saved successfuly.\n", __argv[0]);
+	return EOk;
+	}
+
+int GenFingerTemplate(const int * const aSerHandle, const int * const aKillSig, const uint8_t * const aDstFlashPos)
 	{
 	if (!aSerHandle)
 		return ENullPtr;
@@ -274,12 +323,8 @@ int GenFingerTemplate(const int * const aSerHandle, const int * const aKillSig)
 
 		Err = GetFpResponse();
 		if (Err == R503_ACK_ERR_COMBINE_FILES)
-			{
-			fprintf(stderr, "\n%s: ERROR! Fingers do not match.\n", __argv[0]);
-			DtorFpPacket(&template_pckt);
-			return Err;
-			}
-		else if (Err)
+			fprintf(stderr, "\n%s: ERROR! Fingers do not match.", __argv[0]);
+		if (Err)
 			{
 			fprintf(stderr, "\n%s: ERROR! Failed to generate finger template.\n", __argv[0]);
 			DtorFpPacket(&template_pckt);
@@ -288,6 +333,10 @@ int GenFingerTemplate(const int * const aSerHandle, const int * const aKillSig)
 
 		fprintf(stdout, "\n%s: Finger template created.\n", __argv[0]);
 		DtorFpPacket(&template_pckt);
+
+		if (aDstFlashPos)
+			if ((Err = SaveFingerTemplate(aSerHandle, 1, aDstFlashPos)))
+				return Err;
 		}
 
 	return EOk;

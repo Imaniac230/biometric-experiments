@@ -2,8 +2,8 @@
 * http://download.mikroe.com/documents/datasheets/R503_datasheet.pdf
 */
 
-#ifndef __FINGERPRINT_H__
-#define __FINGERPRINT_H__
+#ifndef __R503_FINGERPRINT_H__
+#define __R503_FINGERPRINT_H__
 
 
 #include <stdio.h>
@@ -69,7 +69,7 @@
 #define R503_ACK_ERR_NO_FP_MATCH 0x08
 #define R503_ACK_ERR_FP_MATCH__NOT_FOUND 0x09
 #define R503_ACK_ERR_COMBINE_FILES 0x0A
-#define R503_ACK_ERR_ID_OVERFLOW 0x0B
+#define R503_ACK_ERR_FLASH_ID_OVERFLOW 0x0B
 #define R503_ACK_ERR_TEMPLATE_READ 0x0C
 #define R503_ACK_ERR_TEMPLATE_UPLOAD 0x0D
 #define R503_ACK_ERR_REC_MULTIPLE_DATA_PCKGS 0x0E
@@ -170,6 +170,7 @@ int SetFpLed(const int * const aSerHandle, const uint8_t aState, const uint8_t a
 int GetFpResponse();
 int GetFingerImg(const int * const aSerHandle, const int * const aKillSig);
 int FingerImgToBuffer(const int * const aSerHandle, int aBuffNum);
-int GenFingerTemplate(const int * const aSerHandle, const int * const aKillSig);
+int GenFingerTemplate(const int * const aSerHandle, const int * const aKillSig, const uint8_t * const aDstFlashPos);
+int SaveFingerTemplate(const int * const aSerHandle, const int aSrcBufNum, const uint8_t * const aDstFlashPos);
 
-#endif /* __FINGERPRINT_H__ */
+#endif /* __R503_FINGERPRINT_H__ */

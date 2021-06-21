@@ -2,6 +2,6 @@
 
 printf "\nStarting program ...\n\n"
 
-gcc -Wall -pthread -o main main.c fingerprint.c fingerprint.h -lpigpio -lrt && ./main && rm main
+gcc -Wall -pthread -o main main.c r503_fingerprint.c r503_fingerprint.h -lpigpio -lrt && ./main && rm main
 
 printf "\nProgram ended.\n\n"
