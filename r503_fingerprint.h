@@ -171,6 +171,8 @@ int GetFpResponse();
 int GetFingerImg(const int * const aSerHandle, const int * const aKillSig);
 int FingerImgToBuffer(const int * const aSerHandle, int aBuffNum);
 int GenFingerTemplate(const int * const aSerHandle, const int * const aKillSig, const uint8_t * const aDstFlashPos);
-int SaveFingerTemplate(const int * const aSerHandle, const int aSrcBufNum, const uint8_t * const aDstFlashPos);
+int SaveFingerTemplate(const int * const aSerHandle, const int aSrcBuffNum, const uint8_t * const aDstFlashPos);
+int LoadFingerTemplate(const int * const aSerHandle, const uint8_t * const aSrcFlashPos, const int aDstBuffNum);
+int MatchFingerTemplates(const int * const aSerHandle);
 
 #endif /* __R503_FINGERPRINT_H__ */

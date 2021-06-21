@@ -40,8 +40,12 @@ int main(int argc, char ** argv)
 	SetFpLed(&serhandle, R503_LED_FLASHING, R503_LED_PURPLE, 0x20, 0x10);
 
 	gpioSetISRFuncEx(GPIO_FINGER_WAKEUP, ISR_DETECTION_LEVEL, 0, NULL, NULL);
+
 	uint8_t flash_mem[2] = { 0x00, 0x00 };
 	GenFingerTemplate(&serhandle, &terminate, flash_mem);
+	GenFingerTemplate(&serhandle, &terminate, NULL);
+	LoadFingerTemplate(&serhandle, flash_mem, 2);
+	MatchFingerTemplates(&serhandle);
 	gpioDelay((uint32_t)1000000);
 	gpioSetISRFuncEx(GPIO_FINGER_WAKEUP, ISR_DETECTION_LEVEL, 0, HandleFinger, (void*)&isr_uselater);
 
