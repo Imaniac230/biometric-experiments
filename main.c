@@ -4,7 +4,6 @@
 int __argc = 0;
 char ** __argv = NULL;
 
-//TODO: handle out of order signl termination correctly between functions
 int main(int argc, char ** argv)
 	{
 	__argc = argc;

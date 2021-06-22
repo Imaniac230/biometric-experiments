@@ -144,7 +144,7 @@ int GetFingerImg(const int * const aSerHandle, const int * const aKillSig)
 
 	fp_packet_r503 finger_pckt = { 0, };
 	uint8_t data[1] = { R503_INSTR_GET_FINGER_IMG };
-	int Err = 0, terminate = FALSE;
+	int Err = 0;
 	if ((Err = CtorFpPacket(&finger_pckt, R503_PACKET_CMD, 0x3, data, aSerHandle)))
 		{
 		fprintf(stderr, "\n%s: ERROR! Could not create packet for finger IMG storage command.\n", __argv[0]);
@@ -153,7 +153,7 @@ int GetFingerImg(const int * const aSerHandle, const int * const aKillSig)
 
 	fprintf(stdout, "\n%s: \tPlace finger on sensor for detection ...\n", __argv[0]);
 	Err = R503_ACK_ERR_NO_FINGER;
-	while ((Err != R503_ACK_OK) && !terminate)
+	while (Err != R503_ACK_OK)
 		{
 		if ((Err = SendFpPacket(&finger_pckt)))
 			{
@@ -170,10 +170,12 @@ int GetFingerImg(const int * const aSerHandle, const int * const aKillSig)
 			}
 
 		if (aKillSig && *aKillSig)
-			terminate = TRUE;
+			{
+			DtorFpPacket(&finger_pckt);
+			return ESigKill;
+			}
 		}
-	if (!aKillSig || (aKillSig && !*aKillSig))
-		fprintf(stdout, "\n%s: \tFinger image stored successfully.\n\n", __argv[0]);
+	fprintf(stdout, "\n%s: \tFinger image stored successfully.\n\n", __argv[0]);
 
 	DtorFpPacket(&finger_pckt);
 	return EOk;
@@ -302,60 +304,50 @@ int GenFingerTemplate(const int * const aSerHandle, const int * const aKillSig, 
 	if (!aSerHandle)
 		return ENullPtr;
 
-	int kill = FALSE, Err = 0;
+	int Err = 0;
 	fprintf(stdout, "\n\n%s: \tCreating finger template ...\n", __argv[0]);
 	if (aKillSig)
 		{
 		if ((Err = GetFingerImg(aSerHandle, aKillSig)))
 			return Err;
-		kill = *aKillSig;
 		}
 	else
 		{
 		if ((Err = GetFingerImg(aSerHandle, NULL)))
 			return Err;
 		}
+	FingerImgToBuffer(aSerHandle, 1);
 
-	if (!kill)
+	if (aKillSig)
 		{
-		FingerImgToBuffer(aSerHandle, 1);
-
-		if (aKillSig)
-			{
-			if ((Err = GetFingerImg(aSerHandle, aKillSig)))
-				return Err;
-			kill = *aKillSig;
-			}
-		else
-			{
-			if ((Err = GetFingerImg(aSerHandle, NULL)))
-				return Err;
-			}
-		if (!kill)
-			FingerImgToBuffer(aSerHandle, 2);
-		}
-
-	if (!kill)
-		{
-		fp_packet_r503 template_pckt = { 0, };
-		uint8_t data[1] = { R503_INSTR_GEN_TEMPLATE };
-		Err = SendFpWithResponse(&template_pckt, R503_PACKET_CMD, 0x3, data, aSerHandle, "for finger template creation.");
-		if (Err == R503_ACK_ERR_COMBINE_FILES)
-			fprintf(stderr, "\n%s: ERROR! Fingers do not match.", __argv[0]);
-		if (Err)
-			{
-			fprintf(stderr, "\n%s: ERROR! Failed to generate finger template.\n", __argv[0]);
-			DtorFpPacket(&template_pckt);
+		if ((Err = GetFingerImg(aSerHandle, aKillSig)))
 			return Err;
-			}
-
-		fprintf(stdout, "\n%s: \tFinger template created.\n", __argv[0]);
-		DtorFpPacket(&template_pckt);
-
-		if (aDstFlashPos)
-			if ((Err = SaveFingerTemplate(aSerHandle, 1, aDstFlashPos)))
-				return Err;
 		}
+	else
+		{
+		if ((Err = GetFingerImg(aSerHandle, NULL)))
+			return Err;
+		}
+	FingerImgToBuffer(aSerHandle, 2);
+
+	fp_packet_r503 template_pckt = { 0, };
+	uint8_t data[1] = { R503_INSTR_GEN_TEMPLATE };
+	Err = SendFpWithResponse(&template_pckt, R503_PACKET_CMD, 0x3, data, aSerHandle, "for finger template creation.");
+	if (Err == R503_ACK_ERR_COMBINE_FILES)
+		fprintf(stderr, "\n%s: ERROR! Fingers do not match.", __argv[0]);
+	if (Err)
+		{
+		fprintf(stderr, "\n%s: ERROR! Failed to generate finger template.\n", __argv[0]);
+		DtorFpPacket(&template_pckt);
+		return Err;
+		}
+
+	fprintf(stdout, "\n%s: \tFinger template created.\n", __argv[0]);
+	DtorFpPacket(&template_pckt);
+
+	if (aDstFlashPos)
+		if ((Err = SaveFingerTemplate(aSerHandle, 1, aDstFlashPos)))
+			return Err;
 
 	return EOk;
 	}

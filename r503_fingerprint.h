@@ -135,6 +135,7 @@ enum TError
 	ETtyBadWrite = -21,
 	ETtyBadHandle = -22,
 	ETtyTimeout = -23,
+	ESigKill = -100,
 	EOk = 0
 	};
 

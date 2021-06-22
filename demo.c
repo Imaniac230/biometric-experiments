@@ -26,7 +26,8 @@ int main(int argc, char ** argv)
 	fprintf(stdout, "\n%s: Generate and store a reference finger template:", argv[0]);
 	if ((Err = GenFingerTemplate(&serhandle, &terminate, flash_mem)))
 		{
-		fprintf(stdout, "\n%s: Template creation unsuccessful.\n", argv[0]);
+		if (Err != ESigKill)
+			fprintf(stdout, "\n%s: Template creation unsuccessful.\n", argv[0]);
 		SetFpLed(&serhandle, R503_LED_OFF, 0x00, 0x00, 0x00);
 		serClose(serhandle);
 		return EOk;
@@ -36,7 +37,8 @@ int main(int argc, char ** argv)
 	fprintf(stdout, "\n\n\n%s: Match a finger with the stored template:", argv[0]);
 	if ((Err = GenFingerTemplate(&serhandle, &terminate, NULL)))
 		{
-		fprintf(stdout, "\n%s: Template creation unsuccessful.\n", argv[0]);
+		if (Err != ESigKill)
+			fprintf(stdout, "\n%s: Template creation unsuccessful.\n", argv[0]);
 		SetFpLed(&serhandle, R503_LED_OFF, 0x00, 0x00, 0x00);
 		serClose(serhandle);
 		return EOk;
