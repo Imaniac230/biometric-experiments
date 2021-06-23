@@ -4,46 +4,48 @@
 int __argc = 0;
 char ** __argv = NULL;
 
+//TODO: get rid of serhandle pointer types where not needed
+//	add serhandle to print and get?
+//	store fingerprint template in a better format than just plain text?!
 int main(int argc, char ** argv)
 	{
 	__argc = argc;
 	__argv = argv;
 
-	int Err = 0, terminate = FALSE, isr_uselater = 0, serhandle = 0;
+	int Err = 0, terminate = FALSE, /*isr_uselater = 0,*/ serhandle = 0;
 
-	if(GpioConfig(&isr_uselater, &terminate))
+	if(GpioConfig(NULL, &terminate))
 		return EGpioBadInit;
 
 	if ((serhandle = serOpen(UART_PORT_NAME, UART_BAUD_RATE, 0)) < 0)
 		{
-		fprintf(stderr, "\n%s: ERROR! Could not open serial port %s (handle %d).\n", __argv[0], UART_PORT_NAME, serhandle);
+		fprintf(stderr, "\n%s: ERROR! Could not open serial port %s (handle %d).\n", argv[0], UART_PORT_NAME, serhandle);
 		return ETtyBadOpen;
 		}
 
-	uint8_t pid = R503_PACKET_CMD;
-	uint16_t len = 0x3;
-	uint8_t pdata[1] = { R503_INSTR_READ_SYS_PARAM };
-	fp_packet_r503 packet = { 0, };
-	if ((Err = CtorFpPacket(&packet, pid, len, pdata, &serhandle)))
-		fprintf(stderr, "\n%s: ERROR! Could not create R503 sensor packet.\n", __argv[0]);
+	if ((Err = GenFingerTemplate(&serhandle, &terminate, NULL)))
+		{
+		fprintf(stderr, "\n%s: ERROR! Could not generate finger template.\n", argv[0]);
+		return Err;
+		}
+	if ((Err = UploadFpTemplate(&serhandle, 1)))
+		{
+		fprintf(stderr, "\n%s: ERROR! Could not upload finger template.\n", argv[0]);
+		return Err;
+		}
 
-	if ((Err = SendFpPacket(&packet)))
-		fprintf(stderr, "\n%s: ERROR! Could not send full packet.\n", __argv[0]);
-
-	fp_packet_r503 rec_packet = { 0, };
-	if ((Err = ReadFpPacket(&rec_packet)))
-		fprintf(stderr, "\n%s: ERROR! Could not read full ack packet.\n", __argv[0]);
-
-	if (!Err)
-		PrintFpPacket(&rec_packet, "Received");
+	//ReadPrintFpPacket();
+	if ((Err = ExportFpPacketData("finger_template")))
+		{
+		fprintf(stderr, "\n%s: ERROR! Could not export fingerprint template.\n", argv[0]);
+		return Err;
+		}
 
 	SetFpLed(&serhandle, R503_LED_FLASHING, R503_LED_PURPLE, 0x20, 0x10);
 
 	while (!terminate)
 		{}
 
-	DtorFpPacket(&packet);
-	DtorFpPacket(&rec_packet);
 	serClose(serhandle);
 	return EOk;
 	}

@@ -207,7 +207,7 @@ int SendFpWithResponse(fp_packet_r503 * const aStruct, const uint8_t aId, const 
 	return GetFpResponse();
 	}
 
-int FingerImgToBuffer(const int * const aSerHandle, int aBuffNum)
+int FingerImgToBuffer(const int * const aSerHandle, const int aBuffNum)
 	{
 	if (!aSerHandle)
 		return ENullPtr;
@@ -554,4 +554,71 @@ int GetFpResponse()
 	DtorFpPacket(&ack_pckt);
 
 	return out;
+	}
+
+int UploadFpTemplate(const int * const aSerHandle, const int aBuffNum)
+	{
+	if (!aSerHandle)
+		return ENullPtr;
+
+	uint8_t buff_num = (uint8_t)aBuffNum;
+	if ((aBuffNum != 1) && (aBuffNum != 2))
+		{
+		fprintf(stdout, "\n%s: WARNING! Valid buffer IDs are 1 or 2. Defaulting to 1.\n", __argv[0]);
+		buff_num = 1;
+		}
+
+	fp_packet_r503 template_pckt = { 0, };
+	uint8_t data[2] = { R503_INSTR_UPLOAD_TEMPLATE, buff_num };
+	int Err = SendFpWithResponse(&template_pckt, R503_PACKET_CMD, 0x4, data, aSerHandle, "for finger template upload.");
+	if (Err)
+		{
+		fprintf(stderr, "\n%s: ERROR! Failed to generate character file from finger IMG.\n", __argv[0]);
+		DtorFpPacket(&template_pckt);
+		return Err;
+		}
+
+	DtorFpPacket(&template_pckt);
+	return EOk;
+	}
+
+int ReadPrintFpPacket()
+	{
+	fp_packet_r503 pckt = { 0, };
+	int Err = 0;
+
+	if ((Err = ReadFpPacket(&pckt)))
+		{
+		fprintf(stderr, "\n%s: ERROR! Could not read received packet.\n", __argv[0]);
+		DtorFpPacket(&pckt);
+		return Err;
+		}
+	PrintFpPacket(&pckt, "Finger template");
+
+	return EOk;
+	}
+
+int ExportFpPacketData(const char * const aFileName)
+	{
+	if (!aFileName)
+		return ENullPtr;
+
+	int Err = 0;
+	fp_packet_r503 pckt = { 0, };
+	if ((Err = ReadFpPacket(&pckt)))
+		{
+		fprintf(stderr, "\n%s: ERROR! Could not read or receive packet.\n", __argv[0]);
+		DtorFpPacket(&pckt);
+		return Err;
+		}
+
+	FILE *outfile = fopen(aFileName,"wb");
+	for (size_t idx = 0; idx < pckt.package_length - 2; ++idx)
+		fprintf(outfile, "%x", pckt.data[idx]);
+
+	fclose(outfile);
+	DtorFpPacket(&pckt);
+
+	fprintf(stdout, "\n%s: \tPacket data exported to \"%s\".\n", __argv[0], aFileName);
+	return EOk;
 	}

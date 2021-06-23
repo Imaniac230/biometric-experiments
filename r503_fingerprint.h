@@ -170,10 +170,13 @@ void PrintFpPacket(const fp_packet_r503 * const aPacket, const char * const aPck
 int SetFpLed(const int * const aSerHandle, const uint8_t aState, const uint8_t aColor, const uint8_t aPeriod, const uint8_t aCount);
 int GetFpResponse();
 int GetFingerImg(const int * const aSerHandle, const int * const aKillSig);
-int FingerImgToBuffer(const int * const aSerHandle, int aBuffNum);
+int FingerImgToBuffer(const int * const aSerHandle, const int aBuffNum);
 int GenFingerTemplate(const int * const aSerHandle, const int * const aKillSig, const uint8_t * const aDstFlashPos);
 int SaveFingerTemplate(const int * const aSerHandle, const int aSrcBuffNum, const uint8_t * const aDstFlashPos);
 int LoadFingerTemplate(const int * const aSerHandle, const uint8_t * const aSrcFlashPos, const int aDstBuffNum);
 int MatchFingerTemplates(const int * const aSerHandle);
+int UploadFpTemplate(const int * const aSerHandle, const int aBuffNum);
+int ReadPrintFpPacket();
+int ExportFpPacketData(const char * const aFileName);
 
 #endif /* __R503_FINGERPRINT_H__ */
