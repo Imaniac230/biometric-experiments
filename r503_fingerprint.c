@@ -55,6 +55,12 @@ int GpioConfig(int *aIsrData, int *aSigData)
 
 int BufferAlloc(uint8_t ** const aBuffer, const size_t aLen)
 	{
+	if (!aBuffer)
+		return ENullPtr;
+
+	if (*aBuffer)
+		BufferDealloc(aBuffer);
+
 	*aBuffer = (uint8_t*)malloc(aLen * sizeof(uint8_t));
 	if (!*aBuffer)
 		return EBadAlloc;
@@ -123,7 +129,7 @@ int CtorFpPacket(fp_packet_r503 * const aStruct, const uint8_t aId, const uint16
 
 void DtorFpPacket(fp_packet_r503 * aStruct)
 	{
-	if (!aStruct)
+	if (aStruct)
 		{
 		aStruct->header = 0;
 		aStruct->address = 0;
@@ -399,6 +405,7 @@ int SetFpLed(const int * const aSerHandle, const uint8_t aState, const uint8_t a
 		return Err;
 		}
 
+	DtorFpPacket(&led_pckt);
 	return EOk;
 	}
 
