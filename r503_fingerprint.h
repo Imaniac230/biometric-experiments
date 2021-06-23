@@ -175,7 +175,7 @@ int GenFingerTemplate(const int * const aSerHandle, const int * const aKillSig, 
 int SaveFingerTemplate(const int * const aSerHandle, const int aSrcBuffNum, const uint8_t * const aDstFlashPos);
 int LoadFingerTemplate(const int * const aSerHandle, const uint8_t * const aSrcFlashPos, const int aDstBuffNum);
 int MatchFingerTemplates(const int * const aSerHandle);
-int UploadFpTemplate(const int * const aSerHandle, const int aBuffNum);
+int ExportFingerTemplate(const int * const aSerHandle, const int aBuffNum, const char * const aFileName);
 int ReadPrintFpPacket();
 int ExportFpPacketData(const char * const aFileName);
 

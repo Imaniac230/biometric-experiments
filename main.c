@@ -5,7 +5,7 @@ int __argc = 0;
 char ** __argv = NULL;
 
 //TODO: get rid of serhandle pointer types where not needed
-//	add serhandle to print and get?
+//	add serhandle to print, get and their derivatives?
 //	store fingerprint template in a better format than just plain text?!
 int main(int argc, char ** argv)
 	{
@@ -28,24 +28,17 @@ int main(int argc, char ** argv)
 		fprintf(stderr, "\n%s: ERROR! Could not generate finger template.\n", argv[0]);
 		return Err;
 		}
-	if ((Err = UploadFpTemplate(&serhandle, 1)))
+	if ((Err = ExportFingerTemplate(&serhandle, 1, "finger_template.fpt")))
 		{
-		fprintf(stderr, "\n%s: ERROR! Could not upload finger template.\n", argv[0]);
-		return Err;
-		}
-
-	//ReadPrintFpPacket();
-	if ((Err = ExportFpPacketData("finger_template")))
-		{
-		fprintf(stderr, "\n%s: ERROR! Could not export fingerprint template.\n", argv[0]);
+		fprintf(stderr, "\n%s: ERROR! Could not export finger template.\n", argv[0]);
 		return Err;
 		}
 
 	SetFpLed(&serhandle, R503_LED_FLASHING, R503_LED_PURPLE, 0x20, 0x10);
 
-	while (!terminate)
+/*	while (!terminate)
 		{}
-
+*/
 	serClose(serhandle);
 	return EOk;
 	}

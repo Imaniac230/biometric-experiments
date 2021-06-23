@@ -556,7 +556,7 @@ int GetFpResponse()
 	return out;
 	}
 
-int UploadFpTemplate(const int * const aSerHandle, const int aBuffNum)
+int ExportFingerTemplate(const int * const aSerHandle, const int aBuffNum, const char * const aFileName)
 	{
 	if (!aSerHandle)
 		return ENullPtr;
@@ -574,6 +574,12 @@ int UploadFpTemplate(const int * const aSerHandle, const int aBuffNum)
 	if (Err)
 		{
 		fprintf(stderr, "\n%s: ERROR! Failed to generate character file from finger IMG.\n", __argv[0]);
+		DtorFpPacket(&template_pckt);
+		return Err;
+		}
+
+	if ((Err = ExportFpPacketData(aFileName)))
+		{
 		DtorFpPacket(&template_pckt);
 		return Err;
 		}
