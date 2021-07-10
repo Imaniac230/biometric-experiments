@@ -1,9 +1,6 @@
 #include "r503_fingerprint.h"
 
 
-int __argc = 0;
-char ** __argv = NULL;
-
 int main(int argc, char ** argv)
 	{
 	__argc = argc;

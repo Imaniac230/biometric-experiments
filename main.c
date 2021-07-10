@@ -1,9 +1,6 @@
 #include "r503_fingerprint.h"
 
 
-int __argc = 0;
-char ** __argv = NULL;
-
 //TODO: get rid of serhandle pointer types where not needed
 //	add serhandle to print, get and their derivatives?
 //	store fingerprint template in a better format than just plain text?!

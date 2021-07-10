@@ -8,5 +8,6 @@ gcc -Wall -pthread -o main main.c r503_fingerprint.c r503_fingerprint.h -lpigpio
 
 printf "\nProgram ended.\n\n"
 
-cat finger_template
+printf "Finger template:\n"
+cat finger_template.fpt
 printf "\n\n"

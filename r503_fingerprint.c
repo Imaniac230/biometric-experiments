@@ -1,5 +1,8 @@
 #include "r503_fingerprint.h"
 
+int __argc = 0;
+char ** __argv = NULL;
+
 
 void HandleFinger(int aGpio, int aLevel, uint32_t aTick, void * aData)
 	{
