@@ -36,10 +36,10 @@ const int16_t * GetFingerprintData()
 	printf("\n\ttemplate (in C func):\n");
 	while (idx < R503_MAX_PACKET_DATA_LENGTH + 1)
 		{
-		printf("%d", FingerTemplate[idx]);
+		printf("%x", FingerTemplate[idx]);
 		++idx;
 		}
-	printf("%d\n", FingerTemplate[idx]);
+	printf("%x\n", FingerTemplate[idx]);
 */
 	serClose(serhandle);
 	free(argv);

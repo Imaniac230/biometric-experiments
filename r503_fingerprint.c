@@ -618,7 +618,7 @@ const int16_t * ExportFpPacketData(const char * const aFileName)
 		{
 		FILE *outfile = fopen(aFileName,"wb");
 		for (size_t idx = 0; idx < pckt.package_length - 2; ++idx)
-			fprintf(outfile, "%d", pckt.data[idx]);
+			fprintf(outfile, "%x", pckt.data[idx]);
 
 		fclose(outfile);
 		fprintf(stdout, "\n%s: \tPacket data exported to \"%s\".\n", __argv[0], aFileName);
