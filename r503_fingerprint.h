@@ -16,6 +16,7 @@
 /* R503 fingerprint sensor macros */
 #define R503_MSG_HEADER 0xEF01
 #define R503_DEFAULT_ADDRESS 0xFFFFFFFF
+#define R503_MAX_PACKET_DATA_LENGTH 200
 
 /* R503 fingerprint sensor packet types */
 #define R503_PACKET_CMD 0x01
@@ -175,8 +176,8 @@ int GenFingerTemplate(const int * const aSerHandle, const int * const aKillSig, 
 int SaveFingerTemplate(const int * const aSerHandle, const int aSrcBuffNum, const uint8_t * const aDstFlashPos);
 int LoadFingerTemplate(const int * const aSerHandle, const uint8_t * const aSrcFlashPos, const int aDstBuffNum);
 int MatchFingerTemplates(const int * const aSerHandle);
-int ExportFingerTemplate(const int * const aSerHandle, const int aBuffNum, const char * const aFileName);
+const int16_t * ExportFingerTemplate(const int * const aSerHandle, const int aBuffNum, const char * const aFileName);
 int ReadPrintFpPacket();
-int ExportFpPacketData(const char * const aFileName);
+const int16_t * ExportFpPacketData(const char * const aFileName);
 
 #endif /* __R503_FINGERPRINT_H__ */

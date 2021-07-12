@@ -559,10 +559,11 @@ int GetFpResponse()
 	return out;
 	}
 
-int ExportFingerTemplate(const int * const aSerHandle, const int aBuffNum, const char * const aFileName)
+const int16_t * ExportFingerTemplate(const int * const aSerHandle, const int aBuffNum, const char * const aFileName)
 	{
+	static int16_t Err[1] = { 0 };
 	if (!aSerHandle)
-		return ENullPtr;
+		{ Err[0] = ENullPtr; return Err; }
 
 	uint8_t buff_num = (uint8_t)aBuffNum;
 	if ((aBuffNum != 1) && (aBuffNum != 2))
@@ -573,22 +574,17 @@ int ExportFingerTemplate(const int * const aSerHandle, const int aBuffNum, const
 
 	fp_packet_r503 template_pckt = { 0, };
 	uint8_t data[2] = { R503_INSTR_UPLOAD_TEMPLATE, buff_num };
-	int Err = SendFpWithResponse(&template_pckt, R503_PACKET_CMD, 0x4, data, aSerHandle, "for finger template upload.");
-	if (Err)
+	Err[0] = SendFpWithResponse(&template_pckt, R503_PACKET_CMD, 0x4, data, aSerHandle, "for finger template upload.");
+	if (Err[0])
 		{
 		fprintf(stderr, "\n%s: ERROR! Failed to generate character file from finger IMG.\n", __argv[0]);
 		DtorFpPacket(&template_pckt);
 		return Err;
 		}
 
-	if ((Err = ExportFpPacketData(aFileName)))
-		{
-		DtorFpPacket(&template_pckt);
-		return Err;
-		}
-
+	const int16_t *PacketData = ExportFpPacketData(aFileName);
 	DtorFpPacket(&template_pckt);
-	return EOk;
+	return PacketData;
 	}
 
 int ReadPrintFpPacket()
@@ -607,27 +603,39 @@ int ReadPrintFpPacket()
 	return EOk;
 	}
 
-int ExportFpPacketData(const char * const aFileName)
+const int16_t * ExportFpPacketData(const char * const aFileName)
 	{
-	if (!aFileName)
-		return ENullPtr;
-
-	int Err = 0;
+	static int16_t Err[1] = { 0 };
 	fp_packet_r503 pckt = { 0, };
-	if ((Err = ReadFpPacket(&pckt)))
+	if ((Err[0] = ReadFpPacket(&pckt)))
 		{
 		fprintf(stderr, "\n%s: ERROR! Could not read or receive packet.\n", __argv[0]);
 		DtorFpPacket(&pckt);
 		return Err;
 		}
 
-	FILE *outfile = fopen(aFileName,"wb");
-	for (size_t idx = 0; idx < pckt.package_length - 2; ++idx)
-		fprintf(outfile, "%x", pckt.data[idx]);
+	if (aFileName)
+		{
+		FILE *outfile = fopen(aFileName,"wb");
+		for (size_t idx = 0; idx < pckt.package_length - 2; ++idx)
+			fprintf(outfile, "%d", pckt.data[idx]);
 
-	fclose(outfile);
+		fclose(outfile);
+		fprintf(stdout, "\n%s: \tPacket data exported to \"%s\".\n", __argv[0], aFileName);
+		}
+
+	size_t ret_length = pckt.package_length - 2, ret_idx = 0;
+	static int16_t PacketData[R503_MAX_PACKET_DATA_LENGTH + 1] = { 0, };
+	if ((pckt.package_length - 2) > R503_MAX_PACKET_DATA_LENGTH)
+		{
+		fprintf(stdout, "\n%s: WARNING! Packet data larger than storage buffer (R503_MAX_PACKET_DATA_LENGTH). Function output will be incomplete.\n", __argv[0]);
+		ret_length = R503_MAX_PACKET_DATA_LENGTH;
+		}
+
+	for (ret_idx = 0; ret_idx < ret_length; ++ret_idx)
+		PacketData[ret_idx] = pckt.data[ret_idx];
+	PacketData[ret_idx] = -1;
+
 	DtorFpPacket(&pckt);
-
-	fprintf(stdout, "\n%s: \tPacket data exported to \"%s\".\n", __argv[0], aFileName);
-	return EOk;
+	return PacketData;
 	}
