@@ -389,7 +389,7 @@ int SendFpPacket(const fp_packet_r503 * const aPacket)
 		{
 		if (serWriteByte(aPacket->serial_handle, aPacket->send_packet[packet_byte]))
 			{
-			fprintf(stderr, "\n%s: ERROR! Could not send %dth byte to serial port %s.\n", __argv[0], packet_byte, UART_PORT_NAME);
+			fprintf(stderr, "\n%s: ERROR! Could not send %zuth byte to serial port %s.\n", __argv[0], packet_byte, UART_PORT_NAME);
 			return ETtyBadWrite;
 			}
 		}
