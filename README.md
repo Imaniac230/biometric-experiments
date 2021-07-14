@@ -10,6 +10,8 @@ The full UART (`/dev/ttyAMA0`) is used for communication for best results. Add `
 If Bluetooth is disabled `sudo systemctl disable hciuart` may need to be run as well.
 Also see `check_config.sh`.
 
-Make sure the `UART_BAUD_RATE` parameter is corresponding to the sensor configuration (57600 is the default sensor setting).
+Make sure the `UART_BAUD_RATE` parameter in `r503_fingerprint.h` is corresponding to the actual sensor configuration (57600 is the default sensor setting).
 
-Run a simple demo with `sudo ./demorun.sh`.
+Run a simple demo with `sudo ./rundemo.sh`.
+
+To make a shared external library usable in Python run `./makesharedlib.sh`.

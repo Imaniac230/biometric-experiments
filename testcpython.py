@@ -4,10 +4,10 @@
 
 if __name__ == "__main__":
 
-    import ctypes as ct
+    from ctypes import CDLL, POINTER, c_int16
 
-    r503 = ct.CDLL("./r503_fingerprint.so")
-    r503.GetFingerprintData.restype = ct.POINTER(ct.c_int16 * 200)
+    r503 = CDLL("./r503_fingerprint.so")
+    r503.GetFingerprintData.restype = POINTER(c_int16 * r503.MaxPacketDataLen())
     finger_data = r503.GetFingerprintData().contents
     finger_data = finger_data[0:finger_data[:].index(-1)]
     finger_data = int("".join(map(hex, finger_data)).replace("0x", ""), base=16)
