@@ -180,11 +180,13 @@ int GetFingerImg(const unsigned aSerHandle, const int * const aKillSig)
 		}
 
 	fprintf(stdout, "\n%s: \tPlace finger on sensor for detection ...\n", __argv[0]);
+	SetFpLed(aSerHandle, R503_LED_FLASHING, R503_LED_PURPLE, 0x20, R503_LED_CYCLES_INFINITE);
 	Err = R503_ACK_ERR_NO_FINGER;
 	while (Err != R503_ACK_OK)
 		{
 		if ((Err = SendFpPacket(&finger_pckt)))
 			{
+			SetFpLed(aSerHandle, R503_LED_SLOW_OFF, R503_LED_RED, R503_LED_PERIOD_MAX, 0);
 			DtorFpPacket(&finger_pckt); SetArgv(NULL, is_allocated);
 			return Err;
 			}
@@ -193,17 +195,20 @@ int GetFingerImg(const unsigned aSerHandle, const int * const aKillSig)
 		if ((Err != R503_ACK_OK) && (Err != R503_ACK_ERR_NO_FINGER))
 			{
 			fprintf(stderr, "\n%s: ERROR! Error when detecting finger.\n", __argv[0]);
+			SetFpLed(aSerHandle, R503_LED_SLOW_OFF, R503_LED_RED, R503_LED_PERIOD_MAX, 0);
 			DtorFpPacket(&finger_pckt); SetArgv(NULL, is_allocated);
 			return Err;
 			}
 
 		if (aKillSig && *aKillSig)
 			{
+			SetFpLed(aSerHandle, R503_LED_OFF, 0, 0, 0);
 			DtorFpPacket(&finger_pckt); SetArgv(NULL, is_allocated);
 			return ESigKill;
 			}
 		}
 	fprintf(stdout, "\n%s: \tFinger image stored successfully.\n\n", __argv[0]);
+	SetFpLed(aSerHandle, R503_LED_SLOW_OFF, R503_LED_BLUE, R503_LED_PERIOD_MAX, 0);
 
 	DtorFpPacket(&finger_pckt);
 	SetArgv(NULL, is_allocated);

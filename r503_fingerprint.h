@@ -93,10 +93,12 @@
 #define R503_LED_OFF 0x04
 #define R503_LED_SLOW_ON 0x05
 #define R503_LED_SLOW_OFF 0x06
-
 #define R503_LED_RED 0x01
 #define R503_LED_BLUE 0x02
 #define R503_LED_PURPLE 0x03
+#define R503_LED_CYCLES_INFINITE 0x00
+#define R503_LED_PERIOD_MAX 0xFF
+#define R503_LED_PERIOD_MIN 0x00
 
 /* signal hadling macros */
 #define SIGNAL_TERMINATE (unsigned)2
@@ -104,7 +106,7 @@
 /* serial port handling macros */
 #define UART_PORT_NAME "/dev/ttyAMA0"
 #define UART_BAUD_RATE (unsigned)115200
-#define DATA_WAIT_TIMEOUT_MICROS (uint32_t)1500000
+#define DATA_WAIT_TIMEOUT_MICROS (uint32_t)2000000
 
 /* GPIO pin function macros */
 #define GPIO_FINGER_WAKEUP (unsigned)22
