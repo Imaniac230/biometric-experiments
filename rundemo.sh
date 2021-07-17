@@ -1,6 +1,6 @@
 #!/bin/bash
 
-./check_config.sh
+./check_rpi_config.sh
 
 printf "\nStarting program ...\n\n"
 

@@ -106,7 +106,7 @@
 /* serial port handling macros */
 #define UART_PORT_NAME "/dev/ttyAMA0"
 #define UART_BAUD_RATE (unsigned)115200
-#define DATA_WAIT_TIMEOUT_MICROS (uint32_t)2000000
+#define DATA_WAIT_TIMEOUT_MICROS (uint32_t)1000000
 
 /* GPIO pin function macros */
 #define GPIO_FINGER_WAKEUP (unsigned)22
@@ -138,6 +138,7 @@ enum TError
 	ETtyBadWrite = -21,
 	ETtyBadHandle = -22,
 	ETtyTimeout = -23,
+	EFpBadMatch = -30,
 	ESigKill = -100,
 	EOk = 0
 	};
@@ -161,7 +162,13 @@ void HandleFinger(int aGpio, int aLevel, uint32_t aTick, void * aData);
 void HandleSignal(int aSignum, void * aData);
 int SetArgv(char * const aStr, const int aFree);
 int MaxPacketDataLen();
+uint32_t GetMicroTick();
+void WaitMicros(const uint32_t aValue);
+int OpenFpSerialPort();
+int CloseFpSerialPort(const unsigned aSerHandle);
+int DataOnFpSerial(const unsigned aSerHandle);
 int GpioConfig(int * aIsrData, int * aSigData);
+int GpioCleanup();
 
 int BufferAlloc(uint8_t ** const aBuffer, const size_t aLen);
 void BufferDealloc(uint8_t ** aBuffer);
@@ -172,16 +179,17 @@ int ReadFpPacket(fp_packet_r503 * const aPacket);
 int WaitForData(const unsigned aSerHandle);
 int64_t ReadByBytes(const unsigned aSerHandle, unsigned aNumofBytes);
 void PrintFpPacket(const fp_packet_r503 * const aPacket, const char * const aPcktType);
-int SetFpLed(const unsigned aSerHandle, const uint8_t aState, const uint8_t aColor, const uint8_t aPeriod, const uint8_t aCount);
-int GetFpResponse();
-int GetFingerImg(const unsigned aSerHandle, const int * const aKillSig);
-int FingerImgToBuffer(const unsigned aSerHandle, const int aBuffNum);
-int GenFingerTemplate(const unsigned aSerHandle, const int * const aKillSig, const uint8_t * const aDstFlashPos);
-int SaveFingerTemplate(const unsigned aSerHandle, const int aSrcBuffNum, const uint8_t * const aDstFlashPos);
-int LoadFingerTemplate(const unsigned aSerHandle, const uint8_t * const aSrcFlashPos, const int aDstBuffNum);
-int MatchFingerTemplates(const unsigned aSerHandle);
-const int16_t * ExportFingerTemplate(const unsigned aSerHandle, const int aBuffNum, const char * const aFileName);
+int SetFpLed(const uint8_t aState, const uint8_t aColor, const uint8_t aPeriod, const uint8_t aCount);
+int SendFpWithResponse(const uint8_t aId, const uint16_t aLen, const uint8_t * const aData, const unsigned * const aSerHandle, const char * const aErrStr);
+int GetFpResponse(const unsigned aSerHandle);
+int GetFingerImg(const int * const aKillSig);
+int FingerImgToBuffer(const int aBuffNum);
+int GenFingerTemplate(const uint8_t * const aDstFlashPos, const int * const aKillSig);
+int SaveFingerTemplate(const int aSrcBuffNum, const uint8_t * const aDstFlashPos);
+int LoadFingerTemplate(const uint8_t * const aSrcFlashPos, const int aDstBuffNum);
+int MatchFingerTemplates();
+const int16_t * ExportFingerTemplate(const uint8_t aBuffNum, const char * const aFileName);
 int ReadPrintFpPacket();
-const int16_t * ExportFpPacketData(const char * const aFileName);
+const int16_t * ExportFpPacketData(const unsigned aSerHandle, const char * const aFileName);
 
 #endif /* __R503_FINGERPRINT_H__ */

@@ -36,25 +36,71 @@ int SetArgv(char * const aStr, const int aFree)
 int MaxPacketDataLen()
 	{ return R503_MAX_PACKET_DATA_LENGTH; }
 
+uint32_t GetMicroTick()
+	{
+	return gpioTick();
+	}
+
+void WaitMicros(const uint32_t aValue)
+	{
+	gpioDelay(aValue);
+	}
+
+int OpenFpSerialPort()
+	{
+	int is_allocated = SetArgv("OpenFpSerialPort", FALSE), Err = 0;
+	if ((Err = serOpen(UART_PORT_NAME, UART_BAUD_RATE, 0)) < 0)
+		{
+		fprintf(stderr, "\n%s: ERROR! Could not open serial port %s. (code %d)\n", __argv[0], UART_PORT_NAME, Err);
+		SetArgv(NULL, is_allocated); return ETtyBadOpen;
+		}
+
+	SetArgv(NULL, is_allocated);
+	return Err;
+	}
+
+int CloseFpSerialPort(const unsigned aSerHandle)
+	{
+	int is_allocated = SetArgv("CloseFpSerialPort", FALSE), Err = serClose(aSerHandle);
+	if (Err)
+		fprintf(stdout, "\n%s: WARNING! Could not close serial port with handle %u, was not assigned to any open port. (code %d)", __argv[0], aSerHandle, Err);
+
+	SetArgv(NULL, is_allocated);
+	return Err;
+	}
+
+int DataOnFpSerial(const unsigned aSerHandle)
+	{
+	int is_allocated = SetArgv("DataOnFpSerial", FALSE), Bytes = serDataAvailable(aSerHandle);
+	if (Bytes == PI_BAD_HANDLE)
+		{
+		fprintf(stderr, "\n%s: ERROR! Bad serial handle. (code %d)\n", __argv[0], ETtyBadHandle);
+		SetArgv(NULL, is_allocated); return ETtyBadHandle;
+		}
+
+	SetArgv(NULL, is_allocated);
+	return Bytes;
+	}
+
 int GpioConfig(int *aIsrData, int *aSigData)
 	{
 	int is_allocated = SetArgv("GpioConfig", FALSE);
 
 	if (gpioInitialise() < 0)
 		{
-		fprintf(stderr, "\n%s: ERROR! Could not initialise pigpio library.\n", __argv[0]);
+		fprintf(stderr, "\n%s: ERROR! Could not initialise pigpio library. (code %d)\n", __argv[0], EGpioBadInit);
 		SetArgv(NULL, is_allocated); return EGpioBadInit;
 		}
 
 	if (gpioSetMode(GPIO_FINGER_WAKEUP, PI_INPUT) == PI_BAD_GPIO)
 		{
-		fprintf(stderr, "\n%s: ERROR! Could not set input mode on GPIO %d.\n", __argv[0], GPIO_FINGER_WAKEUP);
+		fprintf(stderr, "\n%s: ERROR! Could not set input mode on GPIO %d. (code %d)\n", __argv[0], GPIO_FINGER_WAKEUP, EGpioBadMode);
 		SetArgv(NULL, is_allocated); return EGpioBadMode;
 		}
 
 	if (gpioSetPullUpDown(GPIO_FINGER_WAKEUP, PI_PUD_OFF))
 		{
-		fprintf(stderr, "\n%s: ERROR! Could not set off pull up/down on GPIO %d.\n", __argv[0], GPIO_FINGER_WAKEUP);
+		fprintf(stderr, "\n%s: ERROR! Could not set off pull up/down on GPIO %d. (code %d)\n", __argv[0], GPIO_FINGER_WAKEUP, EGpioBadPud);
 		SetArgv(NULL, is_allocated); return EGpioBadPud;
 		}
 
@@ -62,7 +108,7 @@ int GpioConfig(int *aIsrData, int *aSigData)
 		{
 		if (gpioSetSignalFuncEx(SIGNAL_TERMINATE, HandleSignal, (void*)aSigData))
 			{
-			fprintf(stderr, "\n%s: ERROR! Could not set signal function on signal %d.\n", __argv[0], SIGNAL_TERMINATE);
+			fprintf(stderr, "\n%s: ERROR! Could not set signal function on signal %d. (code %d)\n", __argv[0], SIGNAL_TERMINATE, EGpioBadISR);
 			SetArgv(NULL, is_allocated); return EGpioBadISR;
 			}
 		}
@@ -71,11 +117,32 @@ int GpioConfig(int *aIsrData, int *aSigData)
 		{
 		if(gpioSetISRFuncEx(GPIO_FINGER_WAKEUP, ISR_DETECTION_LEVEL, 0, HandleFinger, (void*)aIsrData))
 			{
-			fprintf(stderr, "\n%s: ERROR! Could not set ISR function on GPIO %d.\n", __argv[0], GPIO_FINGER_WAKEUP);
+			fprintf(stderr, "\n%s: ERROR! Could not set ISR function on GPIO %d. (code %d)\n", __argv[0], GPIO_FINGER_WAKEUP, EGpioBadISR);
 			SetArgv(NULL, is_allocated); return EGpioBadISR;
 			}
 		}
 
+	SetArgv(NULL, is_allocated);
+	return EOk;
+	}
+
+int GpioCleanup()
+	{
+	int is_allocated = SetArgv("GpioCleanup", FALSE);
+
+	if (gpioSetSignalFuncEx(SIGNAL_TERMINATE, 0, 0))
+		{
+		fprintf(stderr, "\n%s: ERROR! Could not turn off signal handling on signal %d. (code %d)\n", __argv[0], SIGNAL_TERMINATE, EGpioBadISR);
+		SetArgv(NULL, is_allocated); return EGpioBadISR;
+		}
+
+	if(gpioSetISRFuncEx(GPIO_FINGER_WAKEUP, ISR_DETECTION_LEVEL, 0, 0, 0))
+		{
+		fprintf(stderr, "\n%s: ERROR! Could not turn off ISR handling on GPIO %d. (code %d)\n", __argv[0], GPIO_FINGER_WAKEUP, EGpioBadISR);
+		SetArgv(NULL, is_allocated); return EGpioBadISR;
+		}
+
+	gpioTerminate();
 	SetArgv(NULL, is_allocated);
 	return EOk;
 	}
@@ -161,83 +228,117 @@ void DtorFpPacket(fp_packet_r503 * aStruct)
 		aStruct->package_length = 0;
 		aStruct->checksum = 0;
 		aStruct->send_packet_length = 0;
+		aStruct->serial_handle = 0;
 
 		BufferDealloc(&aStruct->data);
 	        BufferDealloc(&aStruct->send_packet);
 		}
 	}
 
-int GetFingerImg(const unsigned aSerHandle, const int * const aKillSig)
+int GetFingerImg(const int * const aKillSig)
 	{
+	int Err = 0;
+	if ((Err = OpenFpSerialPort()) < 0)
+		return ETtyBadOpen;
+	unsigned serhandle = (unsigned)Err;
+
 	int is_allocated = SetArgv("GetFingerImg", FALSE);
 	fp_packet_r503 finger_pckt = { 0, };
 	uint8_t data[1] = { R503_INSTR_GET_FINGER_IMG };
-	int Err = 0;
-	if ((Err = CtorFpPacket(&finger_pckt, R503_PACKET_CMD, 0x3, data, aSerHandle)))
+	if ((Err = CtorFpPacket(&finger_pckt, R503_PACKET_CMD, 0x3, data, serhandle)))
 		{
-		fprintf(stderr, "\n%s: ERROR! Could not create packet for finger IMG storage command.\n", __argv[0]);
-		SetArgv(NULL, is_allocated); return Err;
+		fprintf(stderr, "\n%s: ERROR! Could not create packet for finger IMG storage command. (code %d)\n", __argv[0], Err);
+		CloseFpSerialPort(serhandle); SetArgv(NULL, is_allocated);
+		return Err;
 		}
 
 	fprintf(stdout, "\n%s: \tPlace finger on sensor for detection ...\n", __argv[0]);
-	SetFpLed(aSerHandle, R503_LED_FLASHING, R503_LED_PURPLE, 0x20, R503_LED_CYCLES_INFINITE);
+	SetFpLed(R503_LED_FLASHING, R503_LED_PURPLE, 0x20, R503_LED_CYCLES_INFINITE);
 	Err = R503_ACK_ERR_NO_FINGER;
 	while (Err != R503_ACK_OK)
 		{
 		if ((Err = SendFpPacket(&finger_pckt)))
 			{
-			SetFpLed(aSerHandle, R503_LED_SLOW_OFF, R503_LED_RED, R503_LED_PERIOD_MAX, 0);
-			DtorFpPacket(&finger_pckt); SetArgv(NULL, is_allocated);
-			return Err;
+			SetFpLed(R503_LED_SLOW_OFF, R503_LED_RED, R503_LED_PERIOD_MAX, 0);
+			DtorFpPacket(&finger_pckt); CloseFpSerialPort(serhandle);
+			SetArgv(NULL, is_allocated); return Err;
 			}
 
-		Err = GetFpResponse();
+		Err = GetFpResponse(serhandle);
 		if ((Err != R503_ACK_OK) && (Err != R503_ACK_ERR_NO_FINGER))
 			{
-			fprintf(stderr, "\n%s: ERROR! Error when detecting finger.\n", __argv[0]);
-			SetFpLed(aSerHandle, R503_LED_SLOW_OFF, R503_LED_RED, R503_LED_PERIOD_MAX, 0);
-			DtorFpPacket(&finger_pckt); SetArgv(NULL, is_allocated);
-			return Err;
+			fprintf(stderr, "\n%s: ERROR! Error when detecting finger. (code %d)\n", __argv[0], Err);
+			SetFpLed(R503_LED_SLOW_OFF, R503_LED_RED, R503_LED_PERIOD_MAX, 0);
+			DtorFpPacket(&finger_pckt); CloseFpSerialPort(serhandle);
+			SetArgv(NULL, is_allocated); return Err;
 			}
 
 		if (aKillSig && *aKillSig)
 			{
-			SetFpLed(aSerHandle, R503_LED_OFF, 0, 0, 0);
-			DtorFpPacket(&finger_pckt); SetArgv(NULL, is_allocated);
-			return ESigKill;
+			SetFpLed(R503_LED_OFF, 0, 0, 0);
+			DtorFpPacket(&finger_pckt); CloseFpSerialPort(serhandle);
+			SetArgv(NULL, is_allocated); return ESigKill;
 			}
 		}
 	fprintf(stdout, "\n%s: \tFinger image stored successfully.\n\n", __argv[0]);
-	SetFpLed(aSerHandle, R503_LED_SLOW_OFF, R503_LED_BLUE, R503_LED_PERIOD_MAX, 0);
+	SetFpLed(R503_LED_SLOW_OFF, R503_LED_BLUE, R503_LED_PERIOD_MAX, 0);
 
 	DtorFpPacket(&finger_pckt);
+	CloseFpSerialPort(serhandle);
 	SetArgv(NULL, is_allocated);
 	return EOk;
 	}
 
-int SendFpWithResponse(fp_packet_r503 * const aStruct, const uint8_t aId, const uint16_t aLen, const uint8_t * const aData, const unsigned aSerHandle, const char * const aErrStr)
+int SendFpWithResponse(const uint8_t aId, const uint16_t aLen, const uint8_t * const aData, const unsigned * const aSerHandle, const char * const aErrStr)
 	{
-	if (!aStruct || !aData)
+	if (!aData)
 		return ENullPtr;
 
-	int is_allocated = SetArgv("SendFpWithResponse", FALSE);
 	int Err = 0;
-	if ((Err = CtorFpPacket(aStruct, aId, aLen, aData, aSerHandle)))
+	unsigned serhandle = 0;
+	if (aSerHandle)
+		serhandle = *aSerHandle;
+	else
+		{
+		if ((Err = OpenFpSerialPort()) < 0)
+			return ETtyBadOpen;
+		serhandle = (unsigned)Err;
+		}
+
+	int is_allocated = SetArgv("SendFpWithResponse", FALSE);
+	fp_packet_r503 packet = { 0, };
+	if ((Err = CtorFpPacket(&packet, aId, aLen, aData, serhandle)))
 		{
 		if (aErrStr)
-			fprintf(stderr, "\n%s: ERROR! Could not create packet %s\n", __argv[0], aErrStr);
+			fprintf(stderr, "\n%s: ERROR! Could not create packet %s (code %d)\n", __argv[0], aErrStr, Err);
 		else
-			fprintf(stderr, "\n%s: ERROR! Could not create packet.\n", __argv[0]);
-		SetArgv(NULL, is_allocated); return Err;
+			fprintf(stderr, "\n%s: ERROR! Could not create packet. (code %d)\n", __argv[0], Err);
+		if (!aSerHandle)
+			CloseFpSerialPort(serhandle);
+		DtorFpPacket(&packet);
+		SetArgv(NULL, is_allocated);
+		return Err;
 		}
-	if ((Err = SendFpPacket(aStruct)))
-		{ SetArgv(NULL, is_allocated); return Err; }
 
+	if ((Err = SendFpPacket(&packet)))
+		{
+		if (!aSerHandle)
+			CloseFpSerialPort(serhandle);
+		DtorFpPacket(&packet);
+		SetArgv(NULL, is_allocated);
+		return Err;
+		}
+
+	Err = GetFpResponse(serhandle);
+	if (!aSerHandle)
+		CloseFpSerialPort(serhandle);
+	DtorFpPacket(&packet);
 	SetArgv(NULL, is_allocated);
-	return GetFpResponse();
+
+	return Err;
 	}
 
-int FingerImgToBuffer(const unsigned aSerHandle, const int aBuffNum)
+int FingerImgToBuffer(const int aBuffNum)
 	{
 	int is_allocated = SetArgv("FingerImgToBuffer", FALSE);
 	uint8_t buff_num = (uint8_t)aBuffNum;
@@ -247,27 +348,24 @@ int FingerImgToBuffer(const unsigned aSerHandle, const int aBuffNum)
 		buff_num = 1;
 		}
 
-	fp_packet_r503 finger_pckt = { 0, };
 	uint8_t data[2] = { R503_INSTR_IMG_TO_CHAR_FILE, buff_num };
-	int Err = SendFpWithResponse(&finger_pckt, R503_PACKET_CMD, 0x4, data, aSerHandle, "for finger IMG to Buffer conversion.");
+	int Err = SendFpWithResponse(R503_PACKET_CMD, 0x4, data, NULL, "for finger IMG to Buffer conversion.");
 	if (Err)
 		{
-		fprintf(stderr, "\n%s: ERROR! Failed to generate character file from finger IMG.\n", __argv[0]);
-		DtorFpPacket(&finger_pckt); SetArgv(NULL, is_allocated);
-		return Err;
+		fprintf(stderr, "\n%s: ERROR! Failed to generate character file from finger IMG. (code %d)\n", __argv[0], Err);
+		SetArgv(NULL, is_allocated); return Err;
 		}
 
-	DtorFpPacket(&finger_pckt);
 	SetArgv(NULL, is_allocated);
 	return EOk;
 	}
 
-int SaveFingerTemplate(const unsigned aSerHandle, const int aSrcBuffNum, const uint8_t * const aDstFlashPos)
+int SaveFingerTemplate(const int aSrcBuffNum, const uint8_t * const aDstFlashPos)
 	{
 	int is_allocated = SetArgv("SaveFingerTemplate", FALSE);
 	if (!aDstFlashPos)
 		{
-		fprintf(stderr, "\n%s: ERROR! Memory storage location not specified.\n", __argv[0]);
+		fprintf(stderr, "\n%s: ERROR! Memory storage location not specified. (code %d)\n", __argv[0], ENullPtr);
 		SetArgv(NULL, is_allocated); return ENullPtr;
 		}
 
@@ -279,30 +377,27 @@ int SaveFingerTemplate(const unsigned aSerHandle, const int aSrcBuffNum, const u
 		}
 
 	fprintf(stdout, "\n\n%s: \tSaving finger template to flash memory ...\n", __argv[0]);
-	fp_packet_r503 template_pckt = { 0, };
 	uint8_t data[4] = { R503_INSTR_STORE_TEMPLATE, buff_num,  aDstFlashPos[0], aDstFlashPos[1] };
-	int Err = SendFpWithResponse(&template_pckt, R503_PACKET_CMD, 0x6, data, aSerHandle, "for finger template storage.");
+	int Err = SendFpWithResponse(R503_PACKET_CMD, 0x6, data, NULL, "for finger template storage.");
 	if (Err == R503_ACK_ERR_FLASH_ID_OVERFLOW)
-		fprintf(stderr, "\n%s: ERROR! Storage position out of bounds of flash memory.", __argv[0]);
+		fprintf(stderr, "\n%s: ERROR! Storage position out of bounds of flash memory. (code %d)", __argv[0], Err);
 	if (Err)
 		{
-		fprintf(stderr, "\n%s: ERROR! Failed to save finger template to flash.\n", __argv[0]);
-		DtorFpPacket(&template_pckt); SetArgv(NULL, is_allocated);
-		return Err;
+		fprintf(stderr, "\n%s: ERROR! Failed to save finger template to flash. (code %d)\n", __argv[0], Err);
+		SetArgv(NULL, is_allocated); return Err;
 		}
-	DtorFpPacket(&template_pckt);
-
 	fprintf(stdout, "\n%s: \tTemplate saved successfuly.\n", __argv[0]);
 	SetArgv(NULL, is_allocated);
+
 	return EOk;
 	}
 
-int LoadFingerTemplate(const unsigned aSerHandle, const uint8_t * const aSrcFlashPos, const int aDstBuffNum)
+int LoadFingerTemplate(const uint8_t * const aSrcFlashPos, const int aDstBuffNum)
 	{
 	int is_allocated = SetArgv("LoadFingerTemplate", FALSE);
 	if (!aSrcFlashPos)
 		{
-		fprintf(stderr, "\n%s: ERROR! Memory storage location not specified.\n", __argv[0]);
+		fprintf(stderr, "\n%s: ERROR! Memory storage location not specified. (code %d)\n", __argv[0], ENullPtr);
 		SetArgv(NULL, is_allocated); return ENullPtr;
 		}
 
@@ -314,82 +409,78 @@ int LoadFingerTemplate(const unsigned aSerHandle, const uint8_t * const aSrcFlas
 		}
 
 	fprintf(stdout, "\n\n%s: \tLoading finger template from flash memory ...\n", __argv[0]);
-	fp_packet_r503 template_pckt = { 0, };
 	uint8_t data[4] = { R503_INSTR_READ_TEMPLATE, buff_num,  aSrcFlashPos[0], aSrcFlashPos[1] };
-	int Err = SendFpWithResponse(&template_pckt, R503_PACKET_CMD, 0x6, data, aSerHandle, "for finger template loading.");
+	int Err = SendFpWithResponse(R503_PACKET_CMD, 0x6, data, NULL, "for finger template loading.");
 	if (Err == R503_ACK_ERR_FLASH_ID_OVERFLOW)
-		fprintf(stderr, "\n%s: ERROR! Reading position out of bounds of flash memory.", __argv[0]);
+		fprintf(stderr, "\n%s: ERROR! Reading position out of bounds of flash memory. (code %d)", __argv[0], Err);
 	if (Err)
 		{
-		fprintf(stderr, "\n%s: ERROR! Failed to load finger template from flash.\n", __argv[0]);
-		DtorFpPacket(&template_pckt); SetArgv(NULL, is_allocated);
-		return Err;
+		fprintf(stderr, "\n%s: ERROR! Failed to load finger template from flash. (code %d)\n", __argv[0], Err);
+		SetArgv(NULL, is_allocated); return Err;
 		}
-	DtorFpPacket(&template_pckt);
-
 	fprintf(stdout, "\n%s: \tTemplate saved successfuly.\n", __argv[0]);
 	SetArgv(NULL, is_allocated);
+
 	return EOk;
 	}
 
-int GenFingerTemplate(const unsigned aSerHandle, const int * const aKillSig, const uint8_t * const aDstFlashPos)
+int GenFingerTemplate(const uint8_t * const aDstFlashPos, const int * const aKillSig)
 	{
 	int is_allocated = SetArgv("GenFingerTemplate", FALSE);
 	int Err = 0;
 	fprintf(stdout, "\n\n%s: \tCreating finger template ...\n", __argv[0]);
 	if (aKillSig)
 		{
-		if ((Err = GetFingerImg(aSerHandle, aKillSig)))
+		if ((Err = GetFingerImg(aKillSig)))
 			{ SetArgv(NULL, is_allocated); return Err; }
 		}
 	else
 		{
-		if ((Err = GetFingerImg(aSerHandle, NULL)))
+		if ((Err = GetFingerImg(NULL)))
 			{ SetArgv(NULL, is_allocated); return Err; }
 		}
-	FingerImgToBuffer(aSerHandle, 1);
+	FingerImgToBuffer(1);
 
 	if (aKillSig)
 		{
-		if ((Err = GetFingerImg(aSerHandle, aKillSig)))
+		if ((Err = GetFingerImg(aKillSig)))
 			{ SetArgv(NULL, is_allocated); return Err; }
 		}
 	else
 		{
-		if ((Err = GetFingerImg(aSerHandle, NULL)))
+		if ((Err = GetFingerImg(NULL)))
 			{ SetArgv(NULL, is_allocated); return Err; }
 		}
-	FingerImgToBuffer(aSerHandle, 2);
+	FingerImgToBuffer(2);
 
-	fp_packet_r503 template_pckt = { 0, };
 	uint8_t data[1] = { R503_INSTR_GEN_TEMPLATE };
-	Err = SendFpWithResponse(&template_pckt, R503_PACKET_CMD, 0x3, data, aSerHandle, "for finger template creation.");
+	Err = SendFpWithResponse(R503_PACKET_CMD, 0x3, data, NULL, "for finger template creation.");
 	if (Err == R503_ACK_ERR_COMBINE_FILES)
-		fprintf(stderr, "\n%s: ERROR! Fingers do not match.", __argv[0]);
+		{
+		fprintf(stderr, "\n%s: ERROR! Fingers do not match. (code %d)", __argv[0], EFpBadMatch);
+		SetArgv(NULL, is_allocated); return EFpBadMatch;
+		}
 	if (Err)
 		{
-		fprintf(stderr, "\n%s: ERROR! Failed to generate finger template.\n", __argv[0]);
-		DtorFpPacket(&template_pckt); SetArgv(NULL, is_allocated);
-		return Err;
+		fprintf(stderr, "\n%s: ERROR! Failed to generate finger template. (code %d)\n", __argv[0], Err);
+		SetArgv(NULL, is_allocated); return Err;
 		}
 
 	fprintf(stdout, "\n%s: \tFinger template created.\n", __argv[0]);
-	DtorFpPacket(&template_pckt);
 
 	if (aDstFlashPos)
-		if ((Err = SaveFingerTemplate(aSerHandle, 1, aDstFlashPos)))
+		if ((Err = SaveFingerTemplate(1, aDstFlashPos)))
 			{ SetArgv(NULL, is_allocated); return Err; }
 
 	SetArgv(NULL, is_allocated);
 	return EOk;
 	}
 
-int MatchFingerTemplates(const unsigned aSerHandle)
+int MatchFingerTemplates()
 	{
 	int is_allocated = SetArgv("MatchFingerTemplates", FALSE);
-	fp_packet_r503 match_pckt = { 0, };
 	uint8_t data[1] = { R503_INSTR_MATCH_TEMPLATES };
-	int Err = SendFpWithResponse(&match_pckt, R503_PACKET_CMD, 0x3, data, aSerHandle, "for template matching.");
+	int Err = SendFpWithResponse(R503_PACKET_CMD, 0x3, data, NULL, "for template matching.");
 	if (Err == R503_ACK_ERR_NO_FP_MATCH)
 		{
 		fprintf(stdout, "\n%s: \tFinger templates do not match.\n", __argv[0]);
@@ -397,14 +488,12 @@ int MatchFingerTemplates(const unsigned aSerHandle)
 		}
 	if (Err)
 		{
-		fprintf(stderr, "\n%s: ERROR! Could not perform finger template matching.\n", __argv[0]);
-		DtorFpPacket(&match_pckt); SetArgv(NULL, is_allocated);
-		return Err;
+		fprintf(stderr, "\n%s: ERROR! Could not perform finger template matching. (code %d)\n", __argv[0], Err);
+		SetArgv(NULL, is_allocated); return Err;
 		}
-
 	fprintf(stdout, "\n%s: \tFinger templates match.\n", __argv[0]);
-	DtorFpPacket(&match_pckt);
 	SetArgv(NULL, is_allocated);
+
 	return EOk;
 	}
 
@@ -418,7 +507,7 @@ int SendFpPacket(const fp_packet_r503 * const aPacket)
 		{
 		if (serWriteByte(aPacket->serial_handle, aPacket->send_packet[packet_byte]))
 			{
-			fprintf(stderr, "\n%s: ERROR! Could not send %zuth byte to serial port %s.\n", __argv[0], packet_byte, UART_PORT_NAME);
+			fprintf(stderr, "\n%s: ERROR! Could not send %zuth byte to serial port %s. (code %d)\n", __argv[0], packet_byte, UART_PORT_NAME, ETtyBadWrite);
 			SetArgv(NULL, is_allocated); return ETtyBadWrite;
 			}
 		}
@@ -427,34 +516,33 @@ int SendFpPacket(const fp_packet_r503 * const aPacket)
 	return EOk;
 	}
 
-int SetFpLed(const unsigned aSerHandle, const uint8_t aState, const uint8_t aColor, const uint8_t aPeriod, const uint8_t aCount)
+int SetFpLed(const uint8_t aState, const uint8_t aColor, const uint8_t aPeriod, const uint8_t aCount)
 	{
-	fp_packet_r503 led_pckt = { 0, };
 	uint8_t data[5] = { R503_INSTR_LED_CONFIG, aState, aPeriod, aColor, aCount };
-	int Err = SendFpWithResponse(&led_pckt, R503_PACKET_CMD, 0x7, data, aSerHandle, "for LED settings.");
+	int Err = SendFpWithResponse(R503_PACKET_CMD, 0x7, data, NULL, "for LED settings.");
 	if (Err)
-		{
-		DtorFpPacket(&led_pckt);
 		return Err;
-		}
 
-	DtorFpPacket(&led_pckt);
 	return EOk;
 	}
 
 int WaitForData(const unsigned aSerHandle)
 	{
-	int is_allocated = SetArgv("WaitForData", FALSE);
-	uint32_t start_t = gpioTick(), curr_t = 0;
-	while (serDataAvailable(aSerHandle) == 0)
+	int is_allocated = SetArgv("WaitForData", FALSE), bytes_avail = 0;
+	uint32_t start_t = GetMicroTick(), curr_t = 0;
+	while ((bytes_avail = DataOnFpSerial(aSerHandle)) == 0)
 		{
-		curr_t = gpioTick();
+		if ((curr_t = GetMicroTick()) < start_t)
+			fprintf(stdout, "\n%s: WARNING! Incorrect timeout calculated.\n", __argv[0]);
 		if ((curr_t - start_t) > DATA_WAIT_TIMEOUT_MICROS)
 			{
-			fprintf(stderr, "\n%s: ERROR! Waiting for serial data reached timeout.\n", __argv[0]);
+			fprintf(stderr, "\n%s: ERROR! Waiting for serial data reached timeout. (code %d)\n", __argv[0], ETtyTimeout);
 			SetArgv(NULL, is_allocated); return ETtyTimeout;
 			}
 		}
+
+	if (bytes_avail < 0)
+		{ SetArgv(NULL, is_allocated); return bytes_avail; }
 
 	SetArgv(NULL, is_allocated);
 	return EOk;
@@ -497,10 +585,11 @@ int ReadFpPacket(fp_packet_r503 * const aPacket)
 	if (!aPacket)
 		return ENullPtr;
 
-	if (serDataAvailable(aPacket->serial_handle) == PI_BAD_HANDLE)
+	int Err = 0;
+	if ((Err = DataOnFpSerial(aPacket->serial_handle)) < 0)
 		{
 		DtorFpPacket(aPacket);
-		return ETtyBadHandle;
+		return Err;
 		}
 
 	int64_t out = ReadByBytes(aPacket->serial_handle, 2);
@@ -535,10 +624,10 @@ int ReadFpPacket(fp_packet_r503 * const aPacket)
 		}
 	aPacket->package_length = (uint16_t)out;
 
-	if (BufferAlloc(&aPacket->data, aPacket->package_length - sizeof(aPacket->checksum)))
+	if ((Err = BufferAlloc(&aPacket->data, aPacket->package_length - sizeof(aPacket->checksum))))
 		{
 		DtorFpPacket(aPacket);
-		return EBadAlloc;
+		return Err;
 		}
 	for (size_t data_byte = 0; data_byte < aPacket->package_length - 2; ++data_byte)
 		{
@@ -587,42 +676,50 @@ void PrintFpPacket(const fp_packet_r503 * const aPacket, const char * const aPck
 		}
 	}
 
-int GetFpResponse()
+int GetFpResponse(const unsigned aSerHandle)
 	{
-	int Err = 0;
+	int is_allocated = SetArgv("GetFpResponse", FALSE), Err = 0;
 	fp_packet_r503 ack_pckt = { 0, };
+	ack_pckt.serial_handle = aSerHandle;
 	if ((Err = ReadFpPacket(&ack_pckt)))
-		return Err;
-	int out = ack_pckt.data[0];
+		{
+		fprintf(stderr, "\n%s: ERROR! Could not read received packet. (code %d)\n", __argv[0], Err);
+		DtorFpPacket(&ack_pckt); return Err;
+		}
+	int Ret = (int)ack_pckt.data[0];
 	DtorFpPacket(&ack_pckt);
+	SetArgv(NULL, is_allocated);
 
-	return out;
+	return Ret;
 	}
 
-const int16_t * ExportFingerTemplate(const unsigned aSerHandle, const int aBuffNum, const char * const aFileName)
+const int16_t * ExportFingerTemplate(const uint8_t aBuffNum, const char * const aFileName)
 	{
-	int is_allocated = SetArgv("ExportFingerTemplate", FALSE);
 	static int16_t Err[1] = { 0 };
+	if ((Err[0] = OpenFpSerialPort()) < 0)
+		return Err;
+	unsigned serhandle = (unsigned)Err[0];
 
-	uint8_t buff_num = (uint8_t)aBuffNum;
+	int is_allocated = SetArgv("ExportFingerTemplate", FALSE);
+	uint8_t buff_num = aBuffNum;
 	if ((aBuffNum != 1) && (aBuffNum != 2))
 		{
 		fprintf(stdout, "\n%s: WARNING! Valid buffer IDs are 1 or 2. Defaulting to 1.\n", __argv[0]);
 		buff_num = 1;
 		}
 
-	fp_packet_r503 template_pckt = { 0, };
 	uint8_t data[2] = { R503_INSTR_UPLOAD_TEMPLATE, buff_num };
-	Err[0] = SendFpWithResponse(&template_pckt, R503_PACKET_CMD, 0x4, data, aSerHandle, "for finger template upload.");
+	Err[0] = SendFpWithResponse(R503_PACKET_CMD, 0x4, data, &serhandle, "for finger template upload.");
 	if (Err[0])
 		{
-		fprintf(stderr, "\n%s: ERROR! Failed to generate character file from finger IMG.\n", __argv[0]);
-		DtorFpPacket(&template_pckt); SetArgv(NULL, is_allocated);
+		fprintf(stderr, "\n%s: ERROR! Failed to generate character file from finger IMG. (code %d)\n", __argv[0], Err[0]);
+		CloseFpSerialPort(serhandle); SetArgv(NULL, is_allocated);
 		return Err;
 		}
 
-	const int16_t *PacketData = ExportFpPacketData(aFileName);
-	DtorFpPacket(&template_pckt);
+	const int16_t *PacketData = ExportFpPacketData(serhandle, aFileName);
+	WaitMicros((uint32_t)150000);
+	CloseFpSerialPort(serhandle);
 	SetArgv(NULL, is_allocated);
 	return PacketData;
 	}
@@ -635,24 +732,26 @@ int ReadPrintFpPacket()
 
 	if ((Err = ReadFpPacket(&pckt)))
 		{
-		fprintf(stderr, "\n%s: ERROR! Could not read received packet.\n", __argv[0]);
+		fprintf(stderr, "\n%s: ERROR! Could not read received packet. (code %d)\n", __argv[0], Err);
 		DtorFpPacket(&pckt); SetArgv(NULL, is_allocated);
 		return Err;
 		}
 	PrintFpPacket(&pckt, "Finger template");
 
+	DtorFpPacket(&pckt);
 	SetArgv(NULL, is_allocated);
 	return EOk;
 	}
 
-const int16_t * ExportFpPacketData(const char * const aFileName)
+const int16_t * ExportFpPacketData(const unsigned aSerHandle, const char * const aFileName)
 	{
 	int is_allocated = SetArgv("ExportFpPacketData", FALSE);
 	static int16_t Err[1] = { 0 };
 	fp_packet_r503 pckt = { 0, };
+	pckt.serial_handle = aSerHandle;
 	if ((Err[0] = ReadFpPacket(&pckt)))
 		{
-		fprintf(stderr, "\n%s: ERROR! Could not read or receive packet.\n", __argv[0]);
+		fprintf(stderr, "\n%s: ERROR! Could not read received packet. (code %d)\n", __argv[0], Err[0]);
 		DtorFpPacket(&pckt); SetArgv(NULL, is_allocated);
 		return Err;
 		}
@@ -686,32 +785,23 @@ const int16_t * ExportFpPacketData(const char * const aFileName)
 
 const int16_t * GetFingerprintData()
 	{
-	int is_allocated = SetArgv("GetFingerprintData", FALSE);
-	int terminate = FALSE;
-	unsigned serhandle = 0;
+	int is_allocated = SetArgv("GetFingerprintData", FALSE), terminate = FALSE;
 	static int16_t Err[1] = { 0 };
 
 	if(GpioConfig(NULL, &terminate))
 		{ SetArgv(NULL, is_allocated); Err[0] = EGpioBadInit; return Err; }
 
-	if ((Err[0] = serOpen(UART_PORT_NAME, UART_BAUD_RATE, 0)) < 0)
+	if ((Err[0] = GenFingerTemplate(NULL, &terminate)))
 		{
-		fprintf(stderr, "\n%s: ERROR! Could not open serial port %s (handle %d).\n", __argv[0], UART_PORT_NAME, serhandle);
-		SetArgv(NULL, is_allocated); Err[0] = ETtyBadOpen; return Err;
-		}
-	serhandle = (unsigned)Err[0];
-
-	if ((Err[0] = GenFingerTemplate(serhandle, &terminate, NULL)))
-		{
-		fprintf(stderr, "\n%s: ERROR! Could not generate finger template.\n", __argv[0]);
+		fprintf(stderr, "\n%s: ERROR! Could not generate finger template. (code %d)\n", __argv[0], Err[0]);
 		SetArgv(NULL, is_allocated); return Err;
 		}
 
 	const int16_t *FingerTemplate = NULL;
-	FingerTemplate = ExportFingerTemplate(serhandle, 1, NULL/*"finger_template.fpt"*/);
+	FingerTemplate = ExportFingerTemplate(1, NULL/*"finger_template.fpt"*/);
 	if (FingerTemplate[0] < 0)
 		{
-		fprintf(stderr, "\n%s: ERROR! Could not export finger template.\n", __argv[0]);
+		fprintf(stderr, "\n%s: ERROR! Could not export finger template. (code %d)\n", __argv[0], FingerTemplate[0]);
 		SetArgv(NULL, is_allocated); return FingerTemplate;
 		}
 /*
@@ -724,7 +814,6 @@ const int16_t * GetFingerprintData()
 		}
 	printf("%x\n", FingerTemplate[idx]);
 */
-	serClose(serhandle);
 	SetArgv(NULL, is_allocated);
 	return FingerTemplate;
 	}

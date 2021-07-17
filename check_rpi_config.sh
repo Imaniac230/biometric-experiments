@@ -22,5 +22,7 @@ fi
 
 if [ "$problem" -eq 0 ]; then
 	printf "\nRaspberry Pi configuration OK.\n\n"
+	exit 0
 fi
 
+exit 1
