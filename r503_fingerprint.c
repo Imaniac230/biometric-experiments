@@ -905,7 +905,7 @@ const int16_t * GetFingerprintData()
 	printf("%x\n", FingerTemplate[idx]);
 */
 	SetArgv(NULL, is_allocated);
-#if PIGPIO_PERMITTED
+#ifdef PIGPIO_PERMITTED
 	GpioCleanup();
 #endif
 	return FingerTemplate;
