@@ -125,9 +125,11 @@
 #define DATA_WAIT_TIMEOUT_MICROS (uint64_t)1000000
 
 /* GPIO pin function macros */
+#ifdef PIGPIO_PERMITTED
 #define GPIO_FINGER_WAKEUP (unsigned)22
 #define GPIO_WAKEUP_STATE_DEFAULT (unsigned)1
 #define ISR_DETECTION_LEVEL ((GPIO_WAKEUP_STATE_DEFAULT) ? FALLING_EDGE : RISING_EDGE)
+#endif /* PIGPIO_PERMITTED */
 
 /* boolean state macros */
 #define TRUE (int)1
@@ -186,8 +188,10 @@ int CloseFpSerialPort(const unsigned aSerHandle);
 int DataOnFpSerial(const unsigned aSerHandle);
 int WriteFpByte(const unsigned aSerHandle, const uint8_t aByte);
 int ReadFpByte(const unsigned aSerHandle);
+#ifdef PIGPIO_PERMITTED
 int GpioConfig(int * aIsrData, int * aSigData);
 int GpioCleanup();
+#endif /* PIGPIO_PERMITTED */
 
 int BufferAlloc(uint8_t ** const aBuffer, const size_t aLen);
 void BufferDealloc(uint8_t ** aBuffer);
