@@ -1,6 +1,7 @@
 #!/bin/bash
 
 ./check_rpi_config.sh
+rm finger_template.fpt
 
 printf "\nStarting program ...\n\n"
 

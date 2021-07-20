@@ -9,9 +9,10 @@ int main(int argc, char ** argv)
 
 	int Err = 0, terminate = FALSE/*, isr_uselater = 0,*/;
 	const int16_t *fp_template = NULL;
-
+#ifdef PIGPIO_PERMITTED
 	if(GpioConfig(NULL, &terminate))
 		return EGpioBadInit;
+#endif
 
 	if ((Err = GenFingerTemplate(NULL, &terminate)))
 		{
@@ -30,6 +31,8 @@ int main(int argc, char ** argv)
 	while (!terminate)
 		{}
 */
+#ifdef PIGPIO_PERMITTED
 	GpioCleanup();
+#endif
 	return EOk;
 	}

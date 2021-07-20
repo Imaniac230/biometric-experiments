@@ -6,11 +6,27 @@
 #define __R503_FINGERPRINT_H__
 
 
+#define USE_PIGPIO
+
+#if defined USE_PIGPIO && defined __arm__
+#define PIGPIO_PERMITTED
+#endif /* USE_PIGPIO && __arm__ */
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef PIGPIO_PERMITTED
 #include <pigpio.h>
+#else
+#include <stdint.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <termios.h>
+#include <sys/ioctl.h>
+#include <sys/time.h>
+#endif /* PIGPIO_PERMITTED */
 
 
 /* R503 fingerprint sensor macros */
@@ -106,7 +122,7 @@
 /* serial port handling macros */
 #define UART_PORT_NAME "/dev/ttyAMA0"
 #define UART_BAUD_RATE (unsigned)115200
-#define DATA_WAIT_TIMEOUT_MICROS (uint32_t)1000000
+#define DATA_WAIT_TIMEOUT_MICROS (uint64_t)1000000
 
 /* GPIO pin function macros */
 #define GPIO_FINGER_WAKEUP (unsigned)22
@@ -136,8 +152,9 @@ enum TError
 	EGpioBadISR = -13,
 	ETtyBadOpen = -20,
 	ETtyBadWrite = -21,
-	ETtyBadHandle = -22,
-	ETtyTimeout = -23,
+	ETtyBadRead = -22,
+	ETtyBadHandle = -23,
+	ETtyTimeout = -24,
 	EFpBadMatch = -30,
 	ESigKill = -100,
 	EOk = 0
@@ -162,11 +179,13 @@ void HandleFinger(int aGpio, int aLevel, uint32_t aTick, void * aData);
 void HandleSignal(int aSignum, void * aData);
 int SetArgv(char * const aStr, const int aFree);
 int MaxPacketDataLen();
-uint32_t GetMicroTick();
+uint64_t GetMicroTick();
 void WaitMicros(const uint32_t aValue);
 int OpenFpSerialPort();
 int CloseFpSerialPort(const unsigned aSerHandle);
 int DataOnFpSerial(const unsigned aSerHandle);
+int WriteFpByte(const unsigned aSerHandle, const uint8_t aByte);
+int ReadFpByte(const unsigned aSerHandle);
 int GpioConfig(int * aIsrData, int * aSigData);
 int GpioCleanup();
 

@@ -8,9 +8,10 @@ int main(int argc, char ** argv)
 
 	int Err = 0, terminate = FALSE;
 	uint8_t flash_mem[2] = { 0x00, 0x00 };
-
+#ifdef PIGPIO_PERMITTED
 	if(GpioConfig(NULL, &terminate))
 		return EGpioBadInit;
+#endif
 
 	fprintf(stdout, "\n%s: Generate and store a reference finger template:", argv[0]);
 	if ((Err = GenFingerTemplate(flash_mem, &terminate)))
@@ -42,14 +43,14 @@ int main(int argc, char ** argv)
 		{
 		fprintf(stdout, "\n\n%s: SUCCESS! Finger matches.\n", argv[0]);
 		SetFpLed(R503_LED_FLASHING, R503_LED_BLUE, 0x20, 0x05);
-		gpioDelay((uint32_t)1500000);
+		WaitMicros((uint32_t)1500000);
 		SetFpLed(R503_LED_SLOW_ON, R503_LED_BLUE, 0x20, 0x00);
 		}
 	else if (Err == R503_ACK_ERR_NO_FP_MATCH)
 		{
 		fprintf(stdout, "\n\n%s: FAIL! Finger doesn't match.\n", argv[0]);
 		SetFpLed(R503_LED_FLASHING, R503_LED_RED, 0x20, 0x05);
-		gpioDelay((uint32_t)1500000);
+		WaitMicros((uint32_t)1500000);
 		SetFpLed(R503_LED_SLOW_ON, R503_LED_RED, 0x20, 0x00);
 		}
 	else
@@ -63,6 +64,8 @@ int main(int argc, char ** argv)
 		{}
 
 	SetFpLed(R503_LED_OFF, 0x00, 0x00, 0x00);
+#ifdef PIGPIO_PERMITTED
 	GpioCleanup();
+#endif
 	return EOk;
 	}

@@ -36,33 +36,81 @@ int SetArgv(char * const aStr, const int aFree)
 int MaxPacketDataLen()
 	{ return R503_MAX_PACKET_DATA_LENGTH; }
 
-uint32_t GetMicroTick()
+uint64_t GetMicroTick()
 	{
-	return gpioTick();
+	uint64_t Val = 0;
+#ifdef PIGPIO_PERMITTED
+	Val = (uint64_t)gpioTick();
+#else
+	struct timeval tval;
+	gettimeofday(&tval, NULL);
+	Val = ((uint64_t)tval.tv_sec * (uint64_t)1000000) + (uint64_t)tval.tv_usec;
+#endif /* PIGPIO_PERMITTED */
+	return Val;
 	}
 
 void WaitMicros(const uint32_t aValue)
 	{
+#ifdef PIGPIO_PERMITTED
 	gpioDelay(aValue);
+#else
+	usleep(aValue);
+#endif /* PIGPIO_PERMITTED */
 	}
 
 int OpenFpSerialPort()
 	{
-	int is_allocated = SetArgv("OpenFpSerialPort", FALSE), Err = 0;
-	if ((Err = serOpen(UART_PORT_NAME, UART_BAUD_RATE, 0)) < 0)
+	int is_allocated = SetArgv("OpenFpSerialPort", FALSE), Serhandle = 0;
+#ifdef PIGPIO_PERMITTED
+	if ((Serhandle = serOpen(UART_PORT_NAME, UART_BAUD_RATE, 0)) < 0)
+#else
+	if ((Serhandle = open(UART_PORT_NAME, O_RDWR | O_NONBLOCK)) < 0)
+#endif
 		{
-		fprintf(stderr, "\n%s: ERROR! Could not open serial port %s. (code %d)\n", __argv[0], UART_PORT_NAME, Err);
+		fprintf(stderr, "\n%s: ERROR! Could not open serial port %s. (code %d)\n", __argv[0], UART_PORT_NAME, ETtyBadOpen);
 		SetArgv(NULL, is_allocated); return ETtyBadOpen;
 		}
 
+#ifndef PIGPIO_PERMITTED
+	struct termios tty;
+	if (tcgetattr(Serhandle, &tty))
+		{
+		fprintf(stderr, "\n%s: ERROR! Could not get parameters of serial port %s. (code %d)\n", __argv[0], UART_PORT_NAME, ETtyBadOpen);
+		SetArgv(NULL, is_allocated); return ETtyBadOpen;
+		}
+	cfsetospeed(&tty, UART_BAUD_RATE);
+	cfsetispeed(&tty, UART_BAUD_RATE);
+	tty.c_cflag = (tty.c_cflag & ~CSIZE) | CS8;
+	tty.c_cflag &= ~(PARENB | PARODD);
+	tty.c_cflag &= ~CSTOPB;
+	tty.c_cflag &= ~CRTSCTS;
+	tty.c_cflag |= (CLOCAL | CREAD);
+	tty.c_cflag |= 0;
+	tty.c_lflag = 0;
+	tty.c_iflag &= ~ICANON;
+	tty.c_iflag &= ~(IXON | IXOFF | IXANY);
+	tty.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL);
+	tty.c_oflag = 0;
+	tty.c_cc[VMIN] = 0;
+	tty.c_cc[VTIME] = 0;
+	if (tcsetattr(Serhandle, TCSANOW, &tty))
+		{
+		fprintf(stderr, "\n%s: ERROR! Could not set parameters of serial port %s. (code %d)\n", __argv[0], UART_PORT_NAME, ETtyBadOpen);
+		SetArgv(NULL, is_allocated); return ETtyBadOpen;
+		}
+#endif /* PIGPIO_PERMITTED */
 	SetArgv(NULL, is_allocated);
-	return Err;
+	return Serhandle;
 	}
 
 int CloseFpSerialPort(const unsigned aSerHandle)
 	{
-	int is_allocated = SetArgv("CloseFpSerialPort", FALSE), Err = serClose(aSerHandle);
-	if (Err)
+	int is_allocated = SetArgv("CloseFpSerialPort", FALSE), Err = 0;
+#ifdef PIGPIO_PERMITTED
+	if ((Err = serClose(aSerHandle)))
+#else
+	if ((Err = close(aSerHandle)))
+#endif /* PIGPIO_PERMITTED */
 		fprintf(stdout, "\n%s: WARNING! Could not close serial port with handle %u, was not assigned to any open port. (code %d)", __argv[0], aSerHandle, Err);
 
 	SetArgv(NULL, is_allocated);
@@ -71,8 +119,12 @@ int CloseFpSerialPort(const unsigned aSerHandle)
 
 int DataOnFpSerial(const unsigned aSerHandle)
 	{
-	int is_allocated = SetArgv("DataOnFpSerial", FALSE), Bytes = serDataAvailable(aSerHandle);
-	if (Bytes == PI_BAD_HANDLE)
+	int is_allocated = SetArgv("DataOnFpSerial", FALSE), Bytes = 0;
+#ifdef PIGPIO_PERMITTED
+	if ((Bytes = serDataAvailable(aSerHandle)) == PI_BAD_HANDLE)
+#else
+	if (ioctl(aSerHandle, FIONREAD, &Bytes) < 0)
+#endif /* PIGPIO_PERMITTED */
 		{
 		fprintf(stderr, "\n%s: ERROR! Bad serial handle. (code %d)\n", __argv[0], ETtyBadHandle);
 		SetArgv(NULL, is_allocated); return ETtyBadHandle;
@@ -82,6 +134,33 @@ int DataOnFpSerial(const unsigned aSerHandle)
 	return Bytes;
 	}
 
+int WriteFpByte(const unsigned aSerHandle, const uint8_t aByte)
+	{
+	int Err = 0;
+#ifdef PIGPIO_PERMITTED
+	if ((Err = serWriteByte(aSerHandle, (unsigned)aByte)))
+#else
+	if ((Err = write(aSerHandle, &aByte, 1)) < 0)
+#endif /* PIGPIO_PERMITTED */
+		return ETtyBadWrite;
+
+	return EOk;
+	}
+
+int ReadFpByte(const unsigned aSerHandle)
+	{
+	int Byte = 0;
+#ifdef PIGPIO_PERMITTED
+	if ((Byte = serReadByte(aSerHandle)) < 0)
+#else
+	if (read(aSerHandle, &Byte, 1) < 0)
+#endif /* PIGPIO_PERMITTED */
+		return ETtyBadRead;
+
+	return Byte;
+	}
+
+#ifdef PIGPIO_PERMITTED
 int GpioConfig(int *aIsrData, int *aSigData)
 	{
 	int is_allocated = SetArgv("GpioConfig", FALSE);
@@ -146,6 +225,7 @@ int GpioCleanup()
 	SetArgv(NULL, is_allocated);
 	return EOk;
 	}
+#endif /* PIGPIO_PERMITTED */
 
 int BufferAlloc(uint8_t ** const aBuffer, const size_t aLen)
 	{
@@ -502,13 +582,13 @@ int SendFpPacket(const fp_packet_r503 * const aPacket)
 	if (!aPacket)
 		return ENullPtr;
 
-	int is_allocated = SetArgv("SendFpPacket", FALSE);
+	int is_allocated = SetArgv("SendFpPacket", FALSE), Err = 0;
 	for (size_t packet_byte = 0; packet_byte < aPacket->send_packet_length; ++packet_byte)
 		{
-		if (serWriteByte(aPacket->serial_handle, aPacket->send_packet[packet_byte]))
+		if ((Err = WriteFpByte(aPacket->serial_handle, aPacket->send_packet[packet_byte])))
 			{
-			fprintf(stderr, "\n%s: ERROR! Could not send %zuth byte to serial port %s. (code %d)\n", __argv[0], packet_byte, UART_PORT_NAME, ETtyBadWrite);
-			SetArgv(NULL, is_allocated); return ETtyBadWrite;
+			fprintf(stderr, "\n%s: ERROR! Could not send %zuth byte to serial port %s. (code %d)\n", __argv[0], packet_byte, UART_PORT_NAME, Err);
+			SetArgv(NULL, is_allocated); return Err;
 			}
 		}
 
@@ -529,7 +609,7 @@ int SetFpLed(const uint8_t aState, const uint8_t aColor, const uint8_t aPeriod, 
 int WaitForData(const unsigned aSerHandle)
 	{
 	int is_allocated = SetArgv("WaitForData", FALSE), bytes_avail = 0;
-	uint32_t start_t = GetMicroTick(), curr_t = 0;
+	uint64_t start_t = GetMicroTick(), curr_t = 0;
 	while ((bytes_avail = DataOnFpSerial(aSerHandle)) == 0)
 		{
 		if ((curr_t = GetMicroTick()) < start_t)
@@ -563,17 +643,26 @@ int64_t ReadByBytes(const unsigned aSerHandle, unsigned aNumofBytes)
 		}
 
 	int Err = 0;
-	uint32_t read_value = 0;
 	if ((Err = WaitForData(aSerHandle)))
 		{ SetArgv(NULL, is_allocated); return Err; }
 
-	read_value = serReadByte(aSerHandle);
+	if ((Err = ReadFpByte(aSerHandle)) < 0)
+		{
+		fprintf(stderr, "\n%s: ERROR! Could not read 1st byte from serial port %s. (code %d)\n", __argv[0], UART_PORT_NAME, Err);
+		SetArgv(NULL, is_allocated); return Err;
+		}
+	uint32_t read_value = (uint32_t)Err;
 	for (size_t n_byte = 2; n_byte <= aNumofBytes; ++n_byte)
 		{
 		read_value <<= 8;
 		if ((Err = WaitForData(aSerHandle)))
 			{ SetArgv(NULL, is_allocated); return Err; }
-		read_value |= serReadByte(aSerHandle);
+		if ((Err = ReadFpByte(aSerHandle)) < 0)
+			{
+			fprintf(stderr, "\n%s: ERROR! Could not read %zuth byte from serial port %s. (code %d)\n", __argv[0], n_byte, UART_PORT_NAME, Err);
+			SetArgv(NULL, is_allocated); return Err;
+			}
+		read_value |= (uint32_t)Err;
 		}
 
 	SetArgv(NULL, is_allocated);
@@ -787,9 +876,10 @@ const int16_t * GetFingerprintData()
 	{
 	int is_allocated = SetArgv("GetFingerprintData", FALSE), terminate = FALSE;
 	static int16_t Err[1] = { 0 };
-
+#ifdef PIGPIO_PERMITTED
 	if(GpioConfig(NULL, &terminate))
 		{ SetArgv(NULL, is_allocated); Err[0] = EGpioBadInit; return Err; }
+#endif
 
 	if ((Err[0] = GenFingerTemplate(NULL, &terminate)))
 		{
@@ -815,5 +905,8 @@ const int16_t * GetFingerprintData()
 	printf("%x\n", FingerTemplate[idx]);
 */
 	SetArgv(NULL, is_allocated);
+#if PIGPIO_PERMITTED
+	GpioCleanup();
+#endif
 	return FingerTemplate;
 	}

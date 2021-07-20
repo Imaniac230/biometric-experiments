@@ -2,8 +2,7 @@
 
 #sudo apt-get install python3-pigpio
 
-if __name__ == "__main__":
-
+def main():
     from ctypes import CDLL, POINTER, c_int16
 
     r503 = CDLL("./r503_fingerprint.so")
@@ -20,3 +19,6 @@ if __name__ == "__main__":
         e = int(f.read(), base=16)
     print(f"\n\tfile (python):\n{format(e, 'x')}\n")
 
+
+if __name__ == "__main__":
+    main()
