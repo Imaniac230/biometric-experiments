@@ -1,4 +1,4 @@
-#include "r503_fingerprint.h"
+#include "R503_fingerprint.h"
 
 int __argc = 0;
 char ** __argv = NULL;

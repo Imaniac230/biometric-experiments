@@ -1,4 +1,4 @@
-#include "r503_fingerprint.h"
+#include "R503_fingerprint.h"
 
 
 //TODO: store fingerprint template in a better format than just plain text?!

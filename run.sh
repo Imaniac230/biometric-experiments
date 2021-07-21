@@ -5,7 +5,7 @@ rm finger_template.fpt
 
 printf "\nStarting program ...\n\n"
 
-gcc -Wall -Werror -pthread -o main main.c r503_fingerprint.c r503_fingerprint.h -lpigpio -lrt && ./main && rm main
+gcc -Wall -Werror -pthread -o main main.c R503_fingerprint.c R503_fingerprint.h -lpigpio -lrt && ./main && rm main
 
 printf "\nProgram ended.\n\n"
 
